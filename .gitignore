@@ -1,0 +1,27 @@
+# Xcode
+#
+# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
+
+## User settings
+xcuserdata/
+
+## Examples of build products
+*.bundle
+*.app
+*.exp
+*.lib
+*.tbd
+*.dylib
+*.framework
+*.a
+*.o
+*.pyc
+
+## Swift Package Manager
+.build/
+
+## DerivedData
+DerivedData/
+
+## OS X
+.DS_Store
