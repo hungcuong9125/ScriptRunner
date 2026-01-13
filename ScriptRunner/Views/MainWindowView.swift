@@ -18,7 +18,7 @@ struct MainWindowView: View {
     @EnvironmentObject var scriptManager: ScriptManager
     @State private var selectedTab: MainTab = .scripts
     @State private var isAddingScript = false
-    @State private var editingScript: Script?
+    @State private var selectedScriptId: UUID?
     @State private var selectedScriptForLog: Script?
     
     let initialTab: MainTab
@@ -32,6 +32,11 @@ struct MainWindowView: View {
         if case .addScript = initialAction {
             _isAddingScript = State(initialValue: true)
         }
+    }
+    
+    private var selectedScript: Script? {
+        guard let id = selectedScriptId else { return nil }
+        return scriptManager.scripts.first { $0.id == id }
     }
     
     var body: some View {
@@ -72,7 +77,7 @@ struct MainWindowView: View {
         ZStack {
             ScriptsTabView(
                 isAddingScript: $isAddingScript,
-                editingScript: $editingScript,
+                selectedScriptId: $selectedScriptId,
                 onViewLog: { script in
                     selectedScriptForLog = script
                     selectedTab = .logs
@@ -101,7 +106,7 @@ struct MainWindowView: View {
             selectedScriptForLog = script
         case .editScript(let script):
             selectedTab = .scripts
-            editingScript = script
+            selectedScriptId = script.id
         case .none:
             break
         }
@@ -166,8 +171,13 @@ enum MainWindowAction {
 struct ScriptsTabView: View {
     @EnvironmentObject var scriptManager: ScriptManager
     @Binding var isAddingScript: Bool
-    @Binding var editingScript: Script?
+    @Binding var selectedScriptId: UUID?
     var onViewLog: (Script) -> Void
+    
+    private var selectedScript: Script? {
+        guard let id = selectedScriptId else { return nil }
+        return scriptManager.scripts.first { $0.id == id }
+    }
     
     var body: some View {
         HSplitView {
@@ -196,17 +206,22 @@ struct ScriptsTabView: View {
             if scriptManager.scripts.isEmpty {
                 emptyStateView
             } else {
-                List {
+                List(selection: $selectedScriptId) {
                     ForEach(scriptManager.scripts) { script in
                         ScriptListRow(
                             script: script,
                             status: scriptManager.statuses[script.id] ?? .stopped,
-                            isSelected: editingScript?.id == script.id,
-                            onSelect: { editingScript = script; isAddingScript = false },
+                            isSelected: selectedScriptId == script.id,
                             onStart: { scriptManager.startScript(script) },
                             onStop: { scriptManager.stopScript(script) },
                             onViewLog: { onViewLog(script) }
                         )
+                        .tag(script.id)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedScriptId = script.id
+                            isAddingScript = false
+                        }
                     }
                     .onDelete(perform: deleteScripts)
                 }
@@ -218,7 +233,7 @@ struct ScriptsTabView: View {
             HStack {
                 Button(action: { 
                     isAddingScript = true
-                    editingScript = nil
+                    selectedScriptId = nil
                 }) {
                     Label("Add Script", systemImage: "plus")
                 }
@@ -265,34 +280,41 @@ struct ScriptsTabView: View {
                 onSave: { script in
                     scriptManager.addScript(script)
                     isAddingScript = false
-                    editingScript = script
+                    selectedScriptId = script.id
                 },
                 onCancel: {
                     isAddingScript = false
                 }
             )
-        } else if let script = editingScript {
-            ScriptFormView(
-                mode: .edit(script),
+        } else if let script = selectedScript {
+            ScriptDetailView(
+                script: script,
+                status: scriptManager.statuses[script.id] ?? .stopped,
                 onSave: { updated in
                     scriptManager.updateScript(updated)
-                    editingScript = updated
-                },
-                onCancel: {
-                    editingScript = nil
                 },
                 onDelete: {
                     scriptManager.deleteScript(script)
-                    editingScript = nil
+                    selectedScriptId = nil
+                },
+                onStart: {
+                    scriptManager.startScript(script)
+                },
+                onStop: {
+                    scriptManager.stopScript(script)
+                },
+                onViewLog: {
+                    onViewLog(script)
                 }
             )
+            .id(script.id)
         } else {
             VStack {
                 Spacer()
                 Image(systemName: "sidebar.right")
                     .font(.system(size: 48))
                     .foregroundColor(.secondary)
-                Text("Select a script to edit")
+                Text("Select a script to view details")
                     .foregroundColor(.secondary)
                 Text("or click 'Add Script' to create new")
                     .font(.caption)
@@ -306,8 +328,8 @@ struct ScriptsTabView: View {
         for index in offsets {
             let script = scriptManager.scripts[index]
             scriptManager.deleteScript(script)
-            if editingScript?.id == script.id {
-                editingScript = nil
+            if selectedScriptId == script.id {
+                selectedScriptId = nil
             }
         }
     }
@@ -317,7 +339,6 @@ struct ScriptListRow: View {
     let script: Script
     let status: ScriptStatus
     let isSelected: Bool
-    let onSelect: () -> Void
     let onStart: () -> Void
     let onStop: () -> Void
     let onViewLog: () -> Void
@@ -355,12 +376,14 @@ struct ScriptListRow: View {
                             .font(.caption)
                     }
                     .buttonStyle(.borderless)
+                    .help("Stop script")
                 } else {
                     Button(action: onStart) {
                         Image(systemName: "play.fill")
                             .font(.caption)
                     }
                     .buttonStyle(.borderless)
+                    .help("Start script")
                 }
                 
                 Button(action: onViewLog) {
@@ -368,11 +391,10 @@ struct ScriptListRow: View {
                         .font(.caption)
                 }
                 .buttonStyle(.borderless)
+                .help("View logs")
             }
         }
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture { onSelect() }
         .listRowBackground(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
     }
     
@@ -390,41 +412,280 @@ enum ScriptFormMode {
     case edit(Script)
 }
 
+struct ScriptDetailView: View {
+    let script: Script
+    let status: ScriptStatus
+    let onSave: (Script) -> Void
+    let onDelete: () -> Void
+    let onStart: () -> Void
+    let onStop: () -> Void
+    let onViewLog: () -> Void
+    
+    @State private var isEditing = false
+    @State private var editName: String = ""
+    @State private var editCommand: String = ""
+    @State private var editWorkingDirectory: String = ""
+    @State private var editIsAutoStart: Bool = false
+    @State private var showDeleteConfirm = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            headerView
+            
+            Divider()
+            
+            if isEditing {
+                editFormView
+            } else {
+                detailView
+            }
+            
+            Divider()
+            
+            footerView
+        }
+        .onAppear {
+            resetEditFields()
+        }
+        .onChange(of: script.id) { _, _ in
+            isEditing = false
+            resetEditFields()
+        }
+    }
+    
+    private var headerView: some View {
+        HStack {
+            Text(isEditing ? "Edit Script" : "Script Details")
+                .font(.headline)
+            
+            Spacer()
+            
+            HStack(spacing: 4) {
+                Image(systemName: status.icon)
+                    .foregroundColor(statusColor)
+                Text(status.displayName)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+    }
+    
+    private var detailView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                DetailSection(title: "Script Name") {
+                    Text(script.name)
+                        .font(.title3)
+                        .fontWeight(.medium)
+                }
+                
+                DetailSection(title: "Command") {
+                    Text(script.command)
+                        .font(.system(.body, design: .monospaced))
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(6)
+                        .textSelection(.enabled)
+                }
+                
+                DetailSection(title: "Working Directory") {
+                    Text(script.workingDirectory.isEmpty ? "~ (Home)" : script.workingDirectory)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(script.workingDirectory.isEmpty ? .secondary : .primary)
+                }
+                
+                DetailSection(title: "Options") {
+                    HStack {
+                        Image(systemName: script.isAutoStart ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(script.isAutoStart ? .green : .secondary)
+                        Text("Auto-start when app launches")
+                    }
+                }
+                
+                DetailSection(title: "Quick Actions") {
+                    HStack(spacing: 12) {
+                        if status == .running {
+                            Button(action: onStop) {
+                                Label("Stop", systemImage: "stop.fill")
+                            }
+                            .buttonStyle(.bordered)
+                            
+                            Button(action: {
+                                onStop()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                    onStart()
+                                }
+                            }) {
+                                Label("Restart", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button(action: onStart) {
+                                Label("Start", systemImage: "play.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        
+                        Button(action: onViewLog) {
+                            Label("View Logs", systemImage: "doc.text")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
+            .padding()
+        }
+    }
+    
+    private var editFormView: some View {
+        Form {
+            Section("Script Name") {
+                TextField("Name", text: $editName)
+                    .textFieldStyle(.roundedBorder)
+            }
+            
+            Section("Command") {
+                TextEditor(text: $editCommand)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(height: 80)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                    )
+                Text("e.g., npm run dev, ./scripts/start.sh, gkg server start")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Section("Working Directory") {
+                HStack {
+                    TextField("Path (leave empty for home)", text: $editWorkingDirectory)
+                        .textFieldStyle(.roundedBorder)
+                    
+                    Button("Browse...") {
+                        selectDirectory()
+                    }
+                }
+            }
+            
+            Section("Options") {
+                Toggle("Auto-start when app launches", isOn: $editIsAutoStart)
+            }
+        }
+        .formStyle(.grouped)
+    }
+    
+    private var footerView: some View {
+        HStack {
+            Button(role: .destructive) {
+                showDeleteConfirm = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            
+            Spacer()
+            
+            if isEditing {
+                Button("Cancel") {
+                    isEditing = false
+                    resetEditFields()
+                }
+                .keyboardShortcut(.escape)
+                
+                Button("Save") {
+                    saveChanges()
+                }
+                .keyboardShortcut(.return)
+                .buttonStyle(.borderedProminent)
+                .disabled(editName.isEmpty || editCommand.isEmpty)
+            } else {
+                Button("Edit") {
+                    isEditing = true
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding()
+        .alert("Delete Script?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+        } message: {
+            Text("This will stop the script and remove it permanently.")
+        }
+    }
+    
+    private var statusColor: Color {
+        switch status {
+        case .stopped: return .gray
+        case .running: return .green
+        case .crashed: return .red
+        }
+    }
+    
+    private func resetEditFields() {
+        editName = script.name
+        editCommand = script.command
+        editWorkingDirectory = script.workingDirectory
+        editIsAutoStart = script.isAutoStart
+    }
+    
+    private func saveChanges() {
+        var updated = script
+        updated.name = editName
+        updated.command = editCommand
+        updated.workingDirectory = editWorkingDirectory
+        updated.isAutoStart = editIsAutoStart
+        onSave(updated)
+        isEditing = false
+    }
+    
+    private func selectDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        
+        if panel.runModal() == .OK, let url = panel.url {
+            editWorkingDirectory = url.path
+        }
+    }
+}
+
+struct DetailSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+            
+            content
+        }
+    }
+}
+
 struct ScriptFormView: View {
     let mode: ScriptFormMode
     let onSave: (Script) -> Void
     let onCancel: () -> Void
-    var onDelete: (() -> Void)?
     
     @State private var name: String = ""
     @State private var command: String = ""
     @State private var workingDirectory: String = ""
     @State private var isAutoStart: Bool = false
-    @State private var showDeleteConfirm = false
-    
-    init(mode: ScriptFormMode, onSave: @escaping (Script) -> Void, onCancel: @escaping () -> Void, onDelete: (() -> Void)? = nil) {
-        self.mode = mode
-        self.onSave = onSave
-        self.onCancel = onCancel
-        self.onDelete = onDelete
-        
-        if case .edit(let script) = mode {
-            _name = State(initialValue: script.name)
-            _command = State(initialValue: script.command)
-            _workingDirectory = State(initialValue: script.workingDirectory)
-            _isAutoStart = State(initialValue: script.isAutoStart)
-        }
-    }
-    
-    private var isEditing: Bool {
-        if case .edit = mode { return true }
-        return false
-    }
     
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(isEditing ? "Edit Script" : "New Script")
+                Text("New Script")
                     .font(.headline)
                 Spacer()
             }
@@ -471,14 +732,6 @@ struct ScriptFormView: View {
             Divider()
             
             HStack {
-                if isEditing, let onDelete = onDelete {
-                    Button(role: .destructive) {
-                        showDeleteConfirm = true
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                }
-                
                 Spacer()
                 
                 Button("Cancel") {
@@ -486,43 +739,20 @@ struct ScriptFormView: View {
                 }
                 .keyboardShortcut(.escape)
                 
-                Button("Save") {
-                    saveScript()
+                Button("Create") {
+                    let script = Script(
+                        name: name,
+                        command: command,
+                        workingDirectory: workingDirectory,
+                        isAutoStart: isAutoStart
+                    )
+                    onSave(script)
                 }
                 .keyboardShortcut(.return)
                 .buttonStyle(.borderedProminent)
                 .disabled(name.isEmpty || command.isEmpty)
             }
             .padding()
-        }
-        .alert("Delete Script?", isPresented: $showDeleteConfirm) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
-                onDelete?()
-            }
-        } message: {
-            Text("This action cannot be undone.")
-        }
-    }
-    
-    private func saveScript() {
-        switch mode {
-        case .add:
-            let script = Script(
-                name: name,
-                command: command,
-                workingDirectory: workingDirectory,
-                isAutoStart: isAutoStart
-            )
-            onSave(script)
-            
-        case .edit(let existingScript):
-            var updated = existingScript
-            updated.name = name
-            updated.command = command
-            updated.workingDirectory = workingDirectory
-            updated.isAutoStart = isAutoStart
-            onSave(updated)
         }
     }
     

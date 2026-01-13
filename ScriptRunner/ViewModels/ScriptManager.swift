@@ -9,7 +9,8 @@ class ScriptManager: ObservableObject {
     @Published private(set) var statuses: [UUID: ScriptStatus] = [:]
     @Published private(set) var logs: [UUID: LogStore] = [:]
     
-    private var processes: [UUID: Process] = [:]
+    private var handles: [UUID: ExecutorHandle] = [:]
+    private let executor: CommandExecutor = ShellExecutor()
     private let storageKey = "ScriptRunner.scripts"
     
     var hasRunningScripts: Bool {
@@ -67,13 +68,22 @@ class ScriptManager: ObservableObject {
     }
     
     func startScript(_ script: Script) {
-        guard statuses[script.id] != .running else { return }
+        // Check if already running or if there's a stale handle
+        if let existingHandle = handles[script.id] {
+            if existingHandle.isRunning {
+                return
+            } else {
+                // Clean up stale handle
+                handles.removeValue(forKey: script.id)
+            }
+        }
         
         let logStore = logs[script.id] ?? LogStore()
         logs[script.id] = logStore
         
         let workingDir = script.effectiveWorkingDirectory
         
+        logStore.append("[\(formattedDate())] ══════════════════════════════════════")
         logStore.append("[\(formattedDate())] Starting: \(script.command)")
         logStore.append("[\(formattedDate())] Working directory: \(workingDir)")
         
@@ -83,57 +93,42 @@ class ScriptManager: ObservableObject {
             return
         }
         
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", script.command]
-        process.currentDirectoryURL = URL(fileURLWithPath: workingDir)
-        process.environment = ProcessInfo.processInfo.environment
-        
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-        
-        outputPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
-                logStore.append(output)
-            }
-        }
-        
-        errorPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
-                logStore.append(output, isError: true)
-            }
-        }
-        
-        process.terminationHandler = { [weak self] proc in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                
-                outputPipe.fileHandleForReading.readabilityHandler = nil
-                errorPipe.fileHandleForReading.readabilityHandler = nil
-                
-                self.processes.removeValue(forKey: script.id)
-                
-                let exitCode = proc.terminationStatus
-                if exitCode == 0 {
-                    self.statuses[script.id] = .stopped
-                    logStore.append("[\(self.formattedDate())] Process exited normally")
-                } else {
-                    self.statuses[script.id] = .crashed(exitCode: exitCode)
-                    logStore.append("[\(self.formattedDate())] Process exited with code \(exitCode)", isError: true)
-                    self.sendCrashNotification(script: script, exitCode: exitCode)
-                }
-            }
-        }
+        // Log environment info for debugging
+        let path = ShellExecutor.buildPath()
+        logStore.append("[\(formattedDate())] HOME: \(ShellExecutor.realHomeDirectory)")
+        logStore.append("[\(formattedDate())] PATH components: \(path.components(separatedBy: ":").count)")
         
         do {
-            try process.run()
-            processes[script.id] = process
+            let scriptId = script.id
+            let handle = try executor.execute(
+                command: script.command,
+                workingDirectory: workingDir,
+                environment: nil,
+                outputHandler: { [weak self] output, isError in
+                    logStore.append(output, isError: isError)
+                },
+                terminationHandler: { [weak self] exitCode in
+                    guard let self = self else { return }
+                    
+                    self.handles.removeValue(forKey: scriptId)
+                    
+                    if exitCode == 0 {
+                        self.statuses[scriptId] = .stopped
+                        logStore.append("[\(self.formattedDate())] Process exited normally")
+                    } else {
+                        self.statuses[scriptId] = .crashed(exitCode: exitCode)
+                        logStore.append("[\(self.formattedDate())] Process exited with code \(exitCode)", isError: true)
+                        if let script = self.scripts.first(where: { $0.id == scriptId }) {
+                            self.sendCrashNotification(script: script, exitCode: exitCode)
+                        }
+                    }
+                }
+            )
+            
+            handles[script.id] = handle
             statuses[script.id] = .running
-            logStore.append("[\(formattedDate())] Process started (PID: \(process.processIdentifier))")
+            logStore.append("[\(formattedDate())] Process started (PID: \(handle.processIdentifier))")
+            
         } catch {
             logStore.append("[\(formattedDate())] Failed to start: \(error.localizedDescription)", isError: true)
             statuses[script.id] = .crashed(exitCode: -1)
@@ -141,23 +136,37 @@ class ScriptManager: ObservableObject {
     }
     
     func stopScript(_ script: Script) {
-        guard let process = processes[script.id] else { return }
-        
-        process.terminate()
-        processes.removeValue(forKey: script.id)
-        statuses[script.id] = .stopped
+        guard let handle = handles[script.id], handle.isRunning else {
+            // Clean up if handle exists but not running
+            handles.removeValue(forKey: script.id)
+            statuses[script.id] = .stopped
+            return
+        }
         
         if let logStore = logs[script.id] {
-            logStore.append("[\(formattedDate())] Process stopped by user")
+            logStore.append("[\(formattedDate())] Stopping process (PID: \(handle.processIdentifier))...")
         }
+        
+        // Update status to indicate stopping
+        handle.terminate()
+        
+        // Note: Don't immediately remove handle or update status
+        // Let the termination handler do it when process actually exits
     }
     
     func restartScript(_ script: Script) {
+        let scriptId = script.id
         stopScript(script)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.startScript(script)
+        
+        // Wait a bit longer for graceful shutdown
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self else { return }
+            if let script = self.scripts.first(where: { $0.id == scriptId }) {
+                self.startScript(script)
+            }
         }
     }
+
     
     func startAllScripts() {
         for script in scripts {

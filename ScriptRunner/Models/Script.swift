@@ -26,13 +26,18 @@ struct Script: Identifiable, Codable, Equatable, Hashable {
     }
     
     var effectiveWorkingDirectory: String {
+        let home = ShellExecutor.realHomeDirectory
+        
         if workingDirectory.isEmpty {
-            return NSHomeDirectory().replacingOccurrences(
-                of: "/Library/Containers/com.scriptrunner.app/Data",
-                with: ""
-            )
+            return home
         }
-        return (workingDirectory as NSString).expandingTildeInPath
+        
+        let path = (workingDirectory as NSString).expandingTildeInPath
+        if path.hasPrefix("/") {
+            return path
+        }
+        
+        return (home as NSString).appendingPathComponent(path)
     }
 }
 

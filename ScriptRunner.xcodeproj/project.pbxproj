@@ -16,7 +16,9 @@
 		010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110 /* Assets.xcassets */; };
 		011 /* WindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 113 /* WindowManager.swift */; };
 		012 /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114 /* MainWindowView.swift */; };
+		013 /* ShellExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115 /* ShellExecutor.swift */; };
 /* End PBXBuildFile section */
+
 
 /* Begin PBXFileReference section */
 		100 /* ScriptRunner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScriptRunner.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -31,7 +33,9 @@
 		112 /* ScriptRunner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ScriptRunner.entitlements; sourceTree = "<group>"; };
 		113 /* WindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowManager.swift; sourceTree = "<group>"; };
 		114 /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowView.swift; sourceTree = "<group>"; };
+		115 /* ShellExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellExecutor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
 
 /* Begin PBXFrameworksBuildPhase section */
 		200 /* Frameworks */ = {
@@ -106,10 +110,12 @@
 			isa = PBXGroup;
 			children = (
 				113 /* WindowManager.swift */,
+				115 /* ShellExecutor.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
 		};
+
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -187,9 +193,11 @@
 				006 /* MenuBarView.swift in Sources */,
 				011 /* WindowManager.swift in Sources */,
 				012 /* MainWindowView.swift in Sources */,
+				013 /* ShellExecutor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
@@ -326,7 +334,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -358,7 +366,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
