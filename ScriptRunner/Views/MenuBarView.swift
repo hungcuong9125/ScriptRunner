@@ -61,6 +61,7 @@ struct MenuBarView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
+            .pointingHandCursor()
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
@@ -86,6 +87,7 @@ struct MenuBarView: View {
                             }
                         }
                     )
+                    .pointingHandCursor()
                 }
             }
             .padding(.horizontal, 8)
@@ -110,6 +112,7 @@ struct MenuBarView: View {
             }
             .buttonStyle(.borderless)
             .keyboardShortcut("n", modifiers: .command)
+            .pointingHandCursor()
             
             Divider()
                 .frame(height: 16)
@@ -128,6 +131,7 @@ struct MenuBarView: View {
             }
             .buttonStyle(.borderless)
             .keyboardShortcut(",", modifiers: .command)
+            .pointingHandCursor()
             
             Spacer()
             
@@ -138,6 +142,7 @@ struct MenuBarView: View {
                 .buttonStyle(.borderless)
                 .help("Start All")
                 .keyboardShortcut("r", modifiers: [.command, .shift])
+                .pointingHandCursor()
                 
                 Button(action: { scriptManager.stopAllScripts() }) {
                     Image(systemName: "stop.fill")
@@ -145,6 +150,7 @@ struct MenuBarView: View {
                 .buttonStyle(.borderless)
                 .help("Stop All")
                 .keyboardShortcut(".", modifiers: .command)
+                .pointingHandCursor()
             }
             
             Divider()
@@ -156,6 +162,7 @@ struct MenuBarView: View {
             .buttonStyle(.borderless)
             .help("Quit")
             .keyboardShortcut("q", modifiers: .command)
+            .pointingHandCursor()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -197,12 +204,14 @@ struct QuickScriptRow: View {
                                 .font(.caption)
                         }
                         .buttonStyle(.borderless)
+                        .pointingHandCursor()
                     } else {
                         Button(action: onStart) {
                             Image(systemName: "play.fill")
                                 .font(.caption)
                         }
                         .buttonStyle(.borderless)
+                        .pointingHandCursor()
                     }
                     
                     Button(action: onViewLog) {
@@ -210,6 +219,7 @@ struct QuickScriptRow: View {
                             .font(.caption)
                     }
                     .buttonStyle(.borderless)
+                    .pointingHandCursor()
                 }
             } else {
                 Text(status.displayName)
@@ -223,6 +233,7 @@ struct QuickScriptRow: View {
         .cornerRadius(6)
         .onHover { isHovering = $0 }
     }
+
     
     private var statusColor: Color {
         switch status {

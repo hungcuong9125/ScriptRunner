@@ -17,7 +17,9 @@
 		011 /* WindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 113 /* WindowManager.swift */; };
 		012 /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114 /* MainWindowView.swift */; };
 		013 /* ShellExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115 /* ShellExecutor.swift */; };
+		014 /* Cursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116 /* Cursor.swift */; };
 /* End PBXBuildFile section */
+
 
 
 /* Begin PBXFileReference section */
@@ -34,7 +36,9 @@
 		113 /* WindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowManager.swift; sourceTree = "<group>"; };
 		114 /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowView.swift; sourceTree = "<group>"; };
 		115 /* ShellExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellExecutor.swift; sourceTree = "<group>"; };
+		116 /* Cursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cursor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
 
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,7 +69,9 @@
 				304 /* ViewModels */,
 				305 /* Views */,
 				306 /* Services */,
+				307 /* Extensions */,
 				110 /* Assets.xcassets */,
+
 				111 /* Info.plist */,
 				112 /* ScriptRunner.entitlements */,
 			);
@@ -115,6 +121,15 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
+		307 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				116 /* Cursor.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+
 
 /* End PBXGroup section */
 
@@ -194,7 +209,9 @@
 				011 /* WindowManager.swift in Sources */,
 				012 /* MainWindowView.swift in Sources */,
 				013 /* ShellExecutor.swift in Sources */,
+				014 /* Cursor.swift in Sources */,
 			);
+
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 

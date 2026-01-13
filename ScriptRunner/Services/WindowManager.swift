@@ -15,6 +15,7 @@ class WindowManager {
         scriptManager: ScriptManager
     ) {
         if let existingWindow = mainWindow {
+            existingWindow.center() // Recenter even if already open
             existingWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -34,7 +35,11 @@ class WindowManager {
         
         window.title = "ScriptRunner"
         window.contentViewController = hostingController
+        
+        // Ensure perfect centering on the active screen
+        window.setFrameAutosaveName("ScriptRunnerMainWindow")
         window.center()
+        
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 700, height: 450)
         
@@ -52,6 +57,7 @@ class WindowManager {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+
     
     func closeMainWindow() {
         mainWindow?.close()

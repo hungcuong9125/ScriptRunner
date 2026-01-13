@@ -141,7 +141,9 @@ struct TabButton: View {
             .shadow(color: isSelected ? Color.black.opacity(0.1) : Color.clear, radius: 2, y: 1)
         }
         .buttonStyle(.plain)
+        .pointingHandCursor()
         .onHover { isHovering = $0 }
+
         .animation(.easeInOut(duration: 0.15), value: isSelected)
         .animation(.easeInOut(duration: 0.1), value: isHovering)
     }
@@ -238,6 +240,7 @@ struct ScriptsTabView: View {
                     Label("Add Script", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
+                .pointingHandCursor()
                 
                 Spacer()
                 
@@ -245,12 +248,15 @@ struct ScriptsTabView: View {
                     scriptManager.startAllScripts()
                 }
                 .disabled(scriptManager.scripts.isEmpty)
+                .pointingHandCursor()
                 
                 Button("Stop All") {
                     scriptManager.stopAllScripts()
                 }
                 .disabled(scriptManager.runningCount == 0)
+                .pointingHandCursor()
             }
+
             .padding()
         }
     }
@@ -381,6 +387,7 @@ struct ScriptListRow: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Stop script")
+                    .pointingHandCursor()
                 } else {
                     Button(action: onStart) {
                         Image(systemName: "play.fill")
@@ -388,6 +395,7 @@ struct ScriptListRow: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Start script")
+                    .pointingHandCursor()
                 }
                 
                 Button(action: onViewLog) {
@@ -396,7 +404,9 @@ struct ScriptListRow: View {
                 }
                 .buttonStyle(.borderless)
                 .help("View logs")
+                .pointingHandCursor()
             }
+
         }
         .padding(.vertical, 4)
         .listRowBackground(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
@@ -530,6 +540,7 @@ struct ScriptDetailView: View {
                                 Label("Stop", systemImage: "stop.fill")
                             }
                             .buttonStyle(.bordered)
+                            .pointingHandCursor()
                             
                             Button(action: {
                                 onStop()
@@ -540,17 +551,20 @@ struct ScriptDetailView: View {
                                 Label("Restart", systemImage: "arrow.clockwise")
                             }
                             .buttonStyle(.bordered)
+                            .pointingHandCursor()
                         } else {
                             Button(action: onStart) {
                                 Label("Start", systemImage: "play.fill")
                             }
                             .buttonStyle(.borderedProminent)
+                            .pointingHandCursor()
                         }
                         
                         Button(action: onViewLog) {
                             Label("View Logs", systemImage: "doc.text")
                         }
                         .buttonStyle(.bordered)
+                        .pointingHandCursor()
                         
                         if script.hasKillCommand {
                             Button(role: .destructive) {
@@ -560,9 +574,11 @@ struct ScriptDetailView: View {
                             }
                             .buttonStyle(.bordered)
                             .help("Execute custom kill command to force stop the script")
+                            .pointingHandCursor()
                         }
                     }
                 }
+
             }
             .padding()
         }
@@ -604,7 +620,9 @@ struct ScriptDetailView: View {
                     Button("Browse...") {
                         selectDirectory()
                     }
+                    .pointingHandCursor()
                 }
+
             }
             
             Section("Options") {
@@ -644,6 +662,7 @@ struct ScriptDetailView: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+            .pointingHandCursor()
             
             Spacer()
             
@@ -653,6 +672,7 @@ struct ScriptDetailView: View {
                     resetEditFields()
                 }
                 .keyboardShortcut(.escape)
+                .pointingHandCursor()
                 
                 Button("Save") {
                     saveChanges()
@@ -660,13 +680,16 @@ struct ScriptDetailView: View {
                 .keyboardShortcut(.return)
                 .buttonStyle(.borderedProminent)
                 .disabled(editName.isEmpty || editCommand.isEmpty)
+                .pointingHandCursor()
             } else {
                 Button("Edit") {
                     isEditing = true
                 }
                 .buttonStyle(.borderedProminent)
+                .pointingHandCursor()
             }
         }
+
         .padding()
         .alert("Delete Script?", isPresented: $showDeleteConfirm) {
             Button("Cancel", role: .cancel) {}
@@ -783,8 +806,10 @@ struct ScriptFormView: View {
                         Button("Browse...") {
                             selectDirectory()
                         }
+                        .pointingHandCursor()
                     }
                 }
+
                 
                 Section("Options") {
                     Toggle("Auto-start when app launches", isOn: $isAutoStart)
@@ -824,6 +849,7 @@ struct ScriptFormView: View {
                     onCancel()
                 }
                 .keyboardShortcut(.escape)
+                .pointingHandCursor()
                 
                 Button("Create") {
                     let script = Script(
@@ -838,7 +864,9 @@ struct ScriptFormView: View {
                 .keyboardShortcut(.return)
                 .buttonStyle(.borderedProminent)
                 .disabled(name.isEmpty || command.isEmpty)
+                .pointingHandCursor()
             }
+
             .padding()
         }
     }
@@ -936,7 +964,9 @@ struct LogsTabView: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.borderless)
+                    .pointingHandCursor()
                 }
+
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -955,7 +985,9 @@ struct LogsTabView: View {
             }
             .buttonStyle(.borderless)
             .disabled(selectedScript == nil)
+            .pointingHandCursor()
         }
+
         .padding()
     }
     
@@ -1017,17 +1049,21 @@ struct LogsTabView: View {
                     Button("Stop") {
                         scriptManager.stopScript(script)
                     }
+                    .pointingHandCursor()
                     
                     Button("Restart") {
                         scriptManager.restartScript(script)
                     }
+                    .pointingHandCursor()
                 } else {
                     Button("Start") {
                         scriptManager.startScript(script)
                     }
                     .buttonStyle(.borderedProminent)
+                    .pointingHandCursor()
                 }
             }
+
         }
         .padding()
     }
@@ -1078,11 +1114,14 @@ struct SettingsTabView: View {
                     Button("Export Configuration") {
                         exportConfiguration()
                     }
+                    .pointingHandCursor()
                     
                     Button("Import Configuration") {
                         importConfiguration()
                     }
+                    .pointingHandCursor()
                 }
+
                 
                 Text("Export your scripts to a JSON file for backup or sharing.")
                     .font(.caption)
@@ -1103,12 +1142,15 @@ struct SettingsTabView: View {
         .padding()
         .alert("Export Successful", isPresented: $showingExportSuccess) {
             Button("OK", role: .cancel) {}
+                .pointingHandCursor()
         }
         .alert("Import Failed", isPresented: $showingImportError) {
             Button("OK", role: .cancel) {}
+                .pointingHandCursor()
         } message: {
             Text(importErrorMessage)
         }
+
     }
     
     private func exportConfiguration() {
