@@ -47,7 +47,8 @@ struct MainWindowView: View {
             
             tabContent
         }
-        .frame(minWidth: 800, minHeight: 500)
+        .frame(minWidth: 1000, minHeight: 650)
+
         .onAppear {
             handleInitialAction()
         }

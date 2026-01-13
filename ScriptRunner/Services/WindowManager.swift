@@ -15,7 +15,7 @@ class WindowManager {
         scriptManager: ScriptManager
     ) {
         if let existingWindow = mainWindow {
-            existingWindow.center() // Recenter even if already open
+            centerWindow(existingWindow)
             existingWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -27,19 +27,17 @@ class WindowManager {
         let hostingController = NSHostingController(rootView: AnyView(contentView))
         
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 750),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
+
+        
+        centerWindow(window)
         
         window.title = "ScriptRunner"
         window.contentViewController = hostingController
-        
-        // Ensure perfect centering on the active screen
-        window.setFrameAutosaveName("ScriptRunnerMainWindow")
-        window.center()
-        
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 700, height: 450)
         
@@ -57,6 +55,23 @@ class WindowManager {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+    
+    private func centerWindow(_ window: NSWindow) {
+        if let screen = NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            let windowFrame = window.frame
+            
+            let x = screenFrame.origin.x + (screenFrame.width - windowFrame.width) / 2
+            let y = screenFrame.origin.y + (screenFrame.height - windowFrame.height) / 2
+            
+            // Set frame without changing size, but moving to calculated center
+            window.setFrameOrigin(NSPoint(x: x, y: y))
+        } else {
+            window.center()
+        }
+    }
+
+
 
     
     func closeMainWindow() {

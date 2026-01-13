@@ -104,9 +104,10 @@ class ScriptManager: ObservableObject {
                 command: script.command,
                 workingDirectory: workingDir,
                 environment: nil,
-                outputHandler: { [weak self] output, isError in
+                outputHandler: { output, isError in
                     logStore.append(output, isError: isError)
                 },
+
                 terminationHandler: { [weak self] exitCode in
                     guard let self = self else { return }
                     
@@ -193,9 +194,10 @@ class ScriptManager: ObservableObject {
                 command: script.killCommand,
                 workingDirectory: workingDir,
                 environment: nil,
-                outputHandler: { [weak self] output, isError in
+                outputHandler: { output, isError in
                     logStore.append(output, isError: isError)
                 },
+
                 terminationHandler: { [weak self] exitCode in
                     guard let self = self else { return }
                     
