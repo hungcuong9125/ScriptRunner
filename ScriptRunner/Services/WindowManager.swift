@@ -32,9 +32,6 @@ class WindowManager {
             backing: .buffered,
             defer: false
         )
-
-        
-        centerWindow(window)
         
         window.title = "ScriptRunner"
         window.contentViewController = hostingController
@@ -52,9 +49,17 @@ class WindowManager {
         
         showDockIcon()
         
+        // Show window first
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        
+        // Defer centering to next run loop so SwiftUI can finish layout
+        DispatchQueue.main.async { [weak self] in
+            self?.centerWindow(window)
+        }
     }
+
+
     
     private func centerWindow(_ window: NSWindow) {
         if let screen = NSScreen.main {

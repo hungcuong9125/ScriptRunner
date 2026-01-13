@@ -1131,8 +1131,9 @@ struct SettingsTabView: View {
             
             Section("About") {
                 LabeledContent("Version") {
-                    Text("1.0.0")
+                    Text("0.5.0")
                 }
+
                 
                 Text("ScriptRunner - A simple menu bar app to manage and run your scripts in the background.")
                     .font(.caption)
