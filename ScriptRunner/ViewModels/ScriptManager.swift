@@ -166,6 +166,58 @@ class ScriptManager: ObservableObject {
             }
         }
     }
+    
+    /// Execute the custom kill command for a script
+    func forceKillScript(_ script: Script) {
+        guard script.hasKillCommand else { return }
+        
+        let logStore = logs[script.id] ?? LogStore()
+        logs[script.id] = logStore
+        
+        logStore.append("[\(formattedDate())] ══════════════════════════════════════")
+        logStore.append("[\(formattedDate())] Executing force kill command...")
+        logStore.append("[\(formattedDate())] Command: \(script.killCommand)")
+        
+        // First, force terminate the handle if it exists
+        if let handle = handles[script.id] {
+            handle.forceTerminate()
+            handles.removeValue(forKey: script.id)
+        }
+        
+        // Execute the kill command
+        let workingDir = script.effectiveWorkingDirectory
+        
+        do {
+            let scriptId = script.id
+            _ = try executor.execute(
+                command: script.killCommand,
+                workingDirectory: workingDir,
+                environment: nil,
+                outputHandler: { [weak self] output, isError in
+                    logStore.append(output, isError: isError)
+                },
+                terminationHandler: { [weak self] exitCode in
+                    guard let self = self else { return }
+                    
+                    if exitCode == 0 {
+                        logStore.append("[\(self.formattedDate())] Force kill completed successfully")
+                    } else {
+                        logStore.append("[\(self.formattedDate())] Force kill exited with code \(exitCode)", isError: true)
+                    }
+                    
+                    // Update status to stopped after kill command
+                    self.statuses[scriptId] = .stopped
+                }
+            )
+            
+            logStore.append("[\(formattedDate())] Force kill command started")
+            statuses[script.id] = .stopped
+            
+        } catch {
+            logStore.append("[\(formattedDate())] Failed to execute kill command: \(error.localizedDescription)", isError: true)
+            statuses[script.id] = .stopped
+        }
+    }
 
     
     func startAllScripts() {

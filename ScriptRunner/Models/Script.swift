@@ -6,6 +6,7 @@ struct Script: Identifiable, Codable, Equatable, Hashable {
     var command: String
     var workingDirectory: String
     var isAutoStart: Bool
+    var killCommand: String
     var createdAt: Date
     var updatedAt: Date
     
@@ -14,15 +15,21 @@ struct Script: Identifiable, Codable, Equatable, Hashable {
         name: String,
         command: String,
         workingDirectory: String = "",
-        isAutoStart: Bool = false
+        isAutoStart: Bool = false,
+        killCommand: String = ""
     ) {
         self.id = id
         self.name = name
         self.command = command
         self.workingDirectory = workingDirectory
         self.isAutoStart = isAutoStart
+        self.killCommand = killCommand
         self.createdAt = Date()
         self.updatedAt = Date()
+    }
+    
+    var hasKillCommand: Bool {
+        !killCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
     var effectiveWorkingDirectory: String {
@@ -40,6 +47,7 @@ struct Script: Identifiable, Codable, Equatable, Hashable {
         return (home as NSString).appendingPathComponent(path)
     }
 }
+
 
 enum ScriptStatus: Equatable {
     case stopped

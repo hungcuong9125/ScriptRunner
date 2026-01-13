@@ -303,12 +303,16 @@ struct ScriptsTabView: View {
                 onStop: {
                     scriptManager.stopScript(script)
                 },
+                onForceKill: {
+                    scriptManager.forceKillScript(script)
+                },
                 onViewLog: {
                     onViewLog(script)
                 }
             )
             .id(script.id)
         } else {
+
             VStack {
                 Spacer()
                 Image(systemName: "sidebar.right")
@@ -419,6 +423,7 @@ struct ScriptDetailView: View {
     let onDelete: () -> Void
     let onStart: () -> Void
     let onStop: () -> Void
+    let onForceKill: () -> Void
     let onViewLog: () -> Void
     
     @State private var isEditing = false
@@ -426,7 +431,9 @@ struct ScriptDetailView: View {
     @State private var editCommand: String = ""
     @State private var editWorkingDirectory: String = ""
     @State private var editIsAutoStart: Bool = false
+    @State private var editKillCommand: String = ""
     @State private var showDeleteConfirm = false
+    @State private var showForceKillConfirm = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -504,6 +511,18 @@ struct ScriptDetailView: View {
                     }
                 }
                 
+                if script.hasKillCommand {
+                    DetailSection(title: "Force Kill Command") {
+                        Text(script.killCommand)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(6)
+                            .textSelection(.enabled)
+                    }
+                }
+                
                 DetailSection(title: "Quick Actions") {
                     HStack(spacing: 12) {
                         if status == .running {
@@ -532,10 +551,28 @@ struct ScriptDetailView: View {
                             Label("View Logs", systemImage: "doc.text")
                         }
                         .buttonStyle(.bordered)
+                        
+                        if script.hasKillCommand {
+                            Button(role: .destructive) {
+                                showForceKillConfirm = true
+                            } label: {
+                                Label("Force Kill", systemImage: "xmark.octagon.fill")
+                            }
+                            .buttonStyle(.bordered)
+                            .help("Execute custom kill command to force stop the script")
+                        }
                     }
                 }
             }
             .padding()
+        }
+        .alert("Force Kill Script?", isPresented: $showForceKillConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Force Kill", role: .destructive) {
+                onForceKill()
+            }
+        } message: {
+            Text("This will execute: \(script.killCommand)")
         }
     }
     
@@ -572,6 +609,29 @@ struct ScriptDetailView: View {
             
             Section("Options") {
                 Toggle("Auto-start when app launches", isOn: $editIsAutoStart)
+            }
+            
+            Section {
+                TextEditor(text: $editKillCommand)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(height: 60)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                    )
+                Text("Optional: Commands to force kill when Stop doesn't work.\ne.g., pkill -f gkg && rm -f ~/.gkg/gkg.lock")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                HStack {
+                    Text("Force Kill Command")
+                    Spacer()
+                    if !editKillCommand.isEmpty {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                    }
+                }
             }
         }
         .formStyle(.grouped)
@@ -631,6 +691,7 @@ struct ScriptDetailView: View {
         editCommand = script.command
         editWorkingDirectory = script.workingDirectory
         editIsAutoStart = script.isAutoStart
+        editKillCommand = script.killCommand
     }
     
     private func saveChanges() {
@@ -639,6 +700,7 @@ struct ScriptDetailView: View {
         updated.command = editCommand
         updated.workingDirectory = editWorkingDirectory
         updated.isAutoStart = editIsAutoStart
+        updated.killCommand = editKillCommand
         onSave(updated)
         isEditing = false
     }
@@ -681,6 +743,7 @@ struct ScriptFormView: View {
     @State private var command: String = ""
     @State private var workingDirectory: String = ""
     @State private var isAutoStart: Bool = false
+    @State private var killCommand: String = ""
     
     var body: some View {
         VStack(spacing: 0) {
@@ -726,6 +789,29 @@ struct ScriptFormView: View {
                 Section("Options") {
                     Toggle("Auto-start when app launches", isOn: $isAutoStart)
                 }
+                
+                Section {
+                    TextEditor(text: $killCommand)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(height: 60)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                        )
+                    Text("Optional: Commands to force kill when Stop doesn't work.\ne.g., pkill -f gkg && rm -f ~/.gkg/gkg.lock")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } header: {
+                    HStack {
+                        Text("Force Kill Command")
+                        Spacer()
+                        if !killCommand.isEmpty {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption)
+                        }
+                    }
+                }
             }
             .formStyle(.grouped)
             
@@ -744,7 +830,8 @@ struct ScriptFormView: View {
                         name: name,
                         command: command,
                         workingDirectory: workingDirectory,
-                        isAutoStart: isAutoStart
+                        isAutoStart: isAutoStart,
+                        killCommand: killCommand
                     )
                     onSave(script)
                 }
