@@ -397,20 +397,9 @@ private struct ListSelectionAppearanceBridge: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {
         DispatchQueue.main.async {
-            guard let tableView = enclosingTableView(from: nsView) else { return }
+            guard let tableView = nsView.enclosingTableView else { return }
             tableView.selectionHighlightStyle = .none
         }
-    }
-
-    private func enclosingTableView(from view: NSView) -> NSTableView? {
-        var currentView: NSView? = view
-        while let view = currentView {
-            if let tableView = view as? NSTableView {
-                return tableView
-            }
-            currentView = view.superview
-        }
-        return nil
     }
 }
 
@@ -421,6 +410,8 @@ struct ScriptListRow: View {
     let onStart: () -> Void
     let onStop: () -> Void
     let onViewLog: () -> Void
+
+    private let selectedRowColor = Color.accentColor
     
     var body: some View {
         HStack(spacing: 8) {
@@ -432,17 +423,18 @@ struct ScriptListRow: View {
                 HStack {
                     Text(script.name)
                         .fontWeight(.medium)
+                        .foregroundColor(primaryTextColor)
                     
                     if script.isAutoStart {
                         Image(systemName: "bolt.fill")
                             .font(.caption2)
-                            .foregroundColor(.orange)
+                            .foregroundColor(isSelected ? .white.opacity(0.9) : .orange)
                     }
                 }
                 
                 Text(script.command)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(secondaryTextColor)
                     .lineLimit(1)
             }
             
@@ -453,6 +445,7 @@ struct ScriptListRow: View {
                     Button(action: onStop) {
                         Image(systemName: "stop.fill")
                             .font(.caption)
+                            .foregroundColor(actionColor)
                     }
                     .buttonStyle(.borderless)
                     .help("Stop script")
@@ -461,6 +454,7 @@ struct ScriptListRow: View {
                     Button(action: onStart) {
                         Image(systemName: "play.fill")
                             .font(.caption)
+                            .foregroundColor(actionColor)
                     }
                     .buttonStyle(.borderless)
                     .help("Start script")
@@ -470,6 +464,7 @@ struct ScriptListRow: View {
                 Button(action: onViewLog) {
                     Image(systemName: "doc.text")
                         .font(.caption)
+                        .foregroundColor(actionColor)
                 }
                 .buttonStyle(.borderless)
                 .help("View logs")
@@ -477,18 +472,47 @@ struct ScriptListRow: View {
             }
 
         }
+        .foregroundColor(primaryTextColor)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+        .padding(.horizontal, 10)
         .padding(.vertical, 4)
-        .listRowBackground(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        .background(selectedRowBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
         .pointingHandCursor()
     }
     
     private var statusColor: Color {
+        if isSelected {
+            return .white.opacity(0.9)
+        }
+
         switch status {
         case .stopped: return .gray
         case .running: return .green
         case .crashed: return .red
+        }
+    }
+
+    private var primaryTextColor: Color {
+        isSelected ? .white : .primary
+    }
+
+    private var secondaryTextColor: Color {
+        isSelected ? .white.opacity(0.8) : .secondary
+    }
+
+    private var actionColor: Color {
+        isSelected ? .white.opacity(0.95) : .secondary
+    }
+
+    @ViewBuilder
+    private var selectedRowBackground: some View {
+        if isSelected {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(selectedRowColor)
+        } else {
+            Color.clear
         }
     }
 }
@@ -1336,6 +1360,22 @@ struct SettingsTabView: View {
     @State private var showingExportSuccess = false
     @State private var showingImportError = false
     @State private var importErrorMessage = ""
+
+    private var appVersionText: String {
+        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+
+        switch (shortVersion, buildVersion) {
+        case let (short?, build?) where !short.isEmpty && !build.isEmpty:
+            return "\(short) (\(build))"
+        case let (short?, _):
+            return short
+        case let (_, build?):
+            return build
+        default:
+            return "Unknown"
+        }
+    }
     
     var body: some View {
         Form {
@@ -1384,7 +1424,7 @@ struct SettingsTabView: View {
             
             Section("About") {
                 LabeledContent("Version") {
-                    Text("0.5.0")
+                    Text(appVersionText)
                 }
 
                 
