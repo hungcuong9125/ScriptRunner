@@ -220,6 +220,11 @@ struct ScriptsTabView: View {
             guard width >= minDetailWidth, abs(width - detailPanelWidth) > 0.5 else { return }
             detailPanelWidth = Double(width)
         }
+        .onChange(of: selectedScriptId) { _, newValue in
+            if newValue != nil {
+                isAddingScript = false
+            }
+        }
     }
     
     private var scriptListView: some View {
@@ -239,7 +244,7 @@ struct ScriptsTabView: View {
             if scriptManager.scripts.isEmpty {
                 emptyStateView
             } else {
-                List {
+                List(selection: $selectedScriptId) {
                     ForEach(scriptManager.scripts) { script in
                         ScriptListRow(
                             script: script,
@@ -249,15 +254,12 @@ struct ScriptsTabView: View {
                             onStop: { scriptManager.stopScript(script) },
                             onViewLog: { onViewLog(script) }
                         )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedScriptId = script.id
-                            isAddingScript = false
-                        }
+                        .tag(script.id)
                     }
                     .onDelete(perform: deleteScripts)
                 }
                 .listStyle(.inset)
+                .background(ListSelectionAppearanceBridge())
             }
             
             Divider()
@@ -385,6 +387,30 @@ struct ScriptsTabView: View {
                 selectedScriptId = nil
             }
         }
+    }
+}
+
+private struct ListSelectionAppearanceBridge: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let tableView = enclosingTableView(from: nsView) else { return }
+            tableView.selectionHighlightStyle = .none
+        }
+    }
+
+    private func enclosingTableView(from view: NSView) -> NSTableView? {
+        var currentView: NSView? = view
+        while let view = currentView {
+            if let tableView = view as? NSTableView {
+                return tableView
+            }
+            currentView = view.superview
+        }
+        return nil
     }
 }
 
