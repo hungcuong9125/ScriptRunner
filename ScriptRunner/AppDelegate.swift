@@ -5,8 +5,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        
-        requestNotificationPermission()
+        configureNotifications()
         startAutoStartScripts()
     }
     
@@ -14,14 +13,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         ScriptManager.shared.stopAllScripts()
     }
     
-    private func requestNotificationPermission() {
+    private func configureNotifications() {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
-        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
-            if let error = error {
-                print("Notification permission error: \(error)")
-            }
-        }
     }
     
     private func startAutoStartScripts() {

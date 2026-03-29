@@ -76,6 +76,16 @@ struct MenuBarView: View {
                         status: scriptManager.statuses[script.id] ?? .stopped,
                         onStart: { scriptManager.startScript(script) },
                         onStop: { scriptManager.stopScript(script) },
+                        onEdit: {
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                WindowManager.shared.openMainWindow(
+                                    tab: .scripts,
+                                    action: .editScript(script),
+                                    scriptManager: scriptManager
+                                )
+                            }
+                        },
                         onViewLog: {
                             dismiss()
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -174,6 +184,7 @@ struct QuickScriptRow: View {
     let status: ScriptStatus
     let onStart: () -> Void
     let onStop: () -> Void
+    let onEdit: () -> Void
     let onViewLog: () -> Void
     
     @State private var isHovering = false
@@ -213,6 +224,13 @@ struct QuickScriptRow: View {
                         .buttonStyle(.borderless)
                         .pointingHandCursor()
                     }
+
+                    Button(action: onEdit) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .pointingHandCursor()
                     
                     Button(action: onViewLog) {
                         Image(systemName: "doc.text")

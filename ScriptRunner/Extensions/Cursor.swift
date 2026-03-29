@@ -12,4 +12,15 @@ extension View {
             }
         }
     }
+
+    /// Applies a custom cursor while hovering over the view
+    func hoverCursor(_ cursor: NSCursor) -> some View {
+        self.onHover { isHovering in
+            if isHovering {
+                cursor.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+    }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 enum MainTab: String, CaseIterable {
     case scripts = "Scripts"
@@ -171,24 +172,53 @@ enum MainWindowAction {
     case viewLog(Script)
 }
 
+private struct WidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct ScriptsTabView: View {
     @EnvironmentObject var scriptManager: ScriptManager
     @Binding var isAddingScript: Bool
     @Binding var selectedScriptId: UUID?
     var onViewLog: (Script) -> Void
+    @AppStorage("scripts.detailPanelWidth") private var detailPanelWidth: Double = 360
+
+    private let minListWidth: CGFloat = 300
+    private let minDetailWidth: CGFloat = 350
     
     private var selectedScript: Script? {
         guard let id = selectedScriptId else { return nil }
         return scriptManager.scripts.first { $0.id == id }
     }
+
+    private var selectedScriptIndex: Int? {
+        guard let id = selectedScriptId else { return nil }
+        return scriptManager.scripts.firstIndex { $0.id == id }
+    }
     
     var body: some View {
         HSplitView {
             scriptListView
-                .frame(minWidth: 300)
-            
+                .frame(minWidth: minListWidth, maxWidth: .infinity)
+
             scriptDetailView
-                .frame(minWidth: 350)
+                .frame(minWidth: minDetailWidth, idealWidth: CGFloat(detailPanelWidth), maxWidth: .infinity)
+                .frame(maxHeight: .infinity)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear
+                            .preference(key: WidthPreferenceKey.self, value: geometry.size.width)
+                    }
+                }
+        }
+        .onPreferenceChange(WidthPreferenceKey.self) { width in
+            guard width >= minDetailWidth, abs(width - detailPanelWidth) > 0.5 else { return }
+            detailPanelWidth = Double(width)
         }
     }
     
@@ -209,7 +239,7 @@ struct ScriptsTabView: View {
             if scriptManager.scripts.isEmpty {
                 emptyStateView
             } else {
-                List(selection: $selectedScriptId) {
+                List {
                     ForEach(scriptManager.scripts) { script in
                         ScriptListRow(
                             script: script,
@@ -219,7 +249,6 @@ struct ScriptsTabView: View {
                             onStop: { scriptManager.stopScript(script) },
                             onViewLog: { onViewLog(script) }
                         )
-                        .tag(script.id)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             selectedScriptId = script.id
@@ -296,6 +325,8 @@ struct ScriptsTabView: View {
         } else if let script = selectedScript {
             ScriptDetailView(
                 script: script,
+                scriptIndex: selectedScriptIndex,
+                totalScripts: scriptManager.scripts.count,
                 status: scriptManager.statuses[script.id] ?? .stopped,
                 onSave: { updated in
                     scriptManager.updateScript(updated)
@@ -303,6 +334,16 @@ struct ScriptsTabView: View {
                 onDelete: {
                     scriptManager.deleteScript(script)
                     selectedScriptId = nil
+                },
+                onDuplicate: {
+                    let duplicated = scriptManager.duplicateScript(script)
+                    selectedScriptId = duplicated.id
+                },
+                onMoveUp: {
+                    scriptManager.moveScript(id: script.id, by: -1)
+                },
+                onMoveDown: {
+                    scriptManager.moveScript(id: script.id, by: 1)
                 },
                 onStart: {
                     scriptManager.startScript(script)
@@ -332,6 +373,7 @@ struct ScriptsTabView: View {
                     .foregroundColor(.secondary)
                 Spacer()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
     
@@ -409,8 +451,11 @@ struct ScriptListRow: View {
             }
 
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .padding(.vertical, 4)
         .listRowBackground(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        .pointingHandCursor()
     }
     
     private var statusColor: Color {
@@ -429,9 +474,14 @@ enum ScriptFormMode {
 
 struct ScriptDetailView: View {
     let script: Script
+    let scriptIndex: Int?
+    let totalScripts: Int
     let status: ScriptStatus
     let onSave: (Script) -> Void
     let onDelete: () -> Void
+    let onDuplicate: () -> Void
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
     let onStart: () -> Void
     let onStop: () -> Void
     let onForceKill: () -> Void
@@ -445,6 +495,16 @@ struct ScriptDetailView: View {
     @State private var editKillCommand: String = ""
     @State private var showDeleteConfirm = false
     @State private var showForceKillConfirm = false
+
+    private var canMoveUp: Bool {
+        guard let scriptIndex else { return false }
+        return scriptIndex > 0
+    }
+
+    private var canMoveDown: Bool {
+        guard let scriptIndex else { return false }
+        return scriptIndex < totalScripts - 1
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -511,7 +571,12 @@ struct ScriptDetailView: View {
                 DetailSection(title: "Working Directory") {
                     Text(script.workingDirectory.isEmpty ? "~ (Home)" : script.workingDirectory)
                         .font(.system(.body, design: .monospaced))
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(6)
                         .foregroundColor(script.workingDirectory.isEmpty ? .secondary : .primary)
+                        .textSelection(.enabled)
                 }
                 
                 DetailSection(title: "Options") {
@@ -566,6 +631,12 @@ struct ScriptDetailView: View {
                         }
                         .buttonStyle(.bordered)
                         .pointingHandCursor()
+
+                        Button(action: onDuplicate) {
+                            Label("Duplicate", systemImage: "plus.square.on.square")
+                        }
+                        .buttonStyle(.bordered)
+                        .pointingHandCursor()
                         
                         if script.hasKillCommand {
                             Button(role: .destructive) {
@@ -577,6 +648,24 @@ struct ScriptDetailView: View {
                             .help("Execute custom kill command to force stop the script")
                             .pointingHandCursor()
                         }
+                    }
+                }
+
+                DetailSection(title: "Position") {
+                    HStack(spacing: 12) {
+                        Button(action: onMoveUp) {
+                            Label("Move Up", systemImage: "arrow.up")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!canMoveUp)
+                        .pointingHandCursor()
+
+                        Button(action: onMoveDown) {
+                            Label("Move Down", systemImage: "arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!canMoveDown)
+                        .pointingHandCursor()
                     }
                 }
 
@@ -596,34 +685,20 @@ struct ScriptDetailView: View {
     private var editFormView: some View {
         Form {
             Section("Script Name") {
-                TextField("Name", text: $editName)
-                    .textFieldStyle(.roundedBorder)
+                FullWidthScriptNameField(placeholder: "Script Name", text: $editName)
             }
             
             Section("Command") {
-                TextEditor(text: $editCommand)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(height: 80)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                    )
-                Text("e.g., npm run dev, ./scripts/start.sh, gkg server start")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    AutoGrowingTextInput(placeholder: "Command", text: $editCommand)
+                    Text("e.g., npm run dev, ./scripts/start.sh, gkg server start")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             
-            Section("Working Directory") {
-                HStack {
-                    TextField("Path (leave empty for home)", text: $editWorkingDirectory)
-                        .textFieldStyle(.roundedBorder)
-                    
-                    Button("Browse...") {
-                        selectDirectory()
-                    }
-                    .pointingHandCursor()
-                }
-
+            Section("Directory") {
+                WorkingDirectoryInputRow(text: $editWorkingDirectory, onBrowse: selectDirectory)
             }
             
             Section("Options") {
@@ -631,16 +706,12 @@ struct ScriptDetailView: View {
             }
             
             Section {
-                TextEditor(text: $editKillCommand)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(height: 60)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                    )
-                Text("Optional: Commands to force kill when Stop doesn't work.\ne.g., pkill -f gkg && rm -f ~/.gkg/gkg.lock")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    AutoGrowingTextInput(placeholder: "Force kill command", text: $editKillCommand)
+                    Text("Optional: Commands to force kill when Stop doesn't work.\ne.g., pkill -f gkg && rm -f ~/.gkg/gkg.lock")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             } header: {
                 HStack {
                     Text("Force Kill Command")
@@ -758,6 +829,178 @@ struct DetailSection<Content: View>: View {
     }
 }
 
+struct FullWidthScriptNameField: View {
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        AutoGrowingTextInput(placeholder: placeholder, text: $text)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private enum InputFieldMetrics {
+    static let horizontalPadding: CGFloat = 12
+    static let verticalPadding: CGFloat = 8
+    static let cornerRadius: CGFloat = 10
+    static let borderOpacity: Double = 0.2
+    static let minimumHeight: CGFloat = 34
+    static let textInset = NSSize(width: 0, height: 0)
+    static let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+    static let singleLineTextHeight: CGFloat = ceil(font.ascender - font.descender + font.leading)
+}
+
+struct AutoGrowingTextInput: View {
+    let placeholder: String
+    @Binding var text: String
+    @State private var dynamicHeight: CGFloat = InputFieldMetrics.singleLineTextHeight
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if text.isEmpty {
+                Text(placeholder)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, InputFieldMetrics.horizontalPadding)
+                    .padding(.vertical, InputFieldMetrics.verticalPadding)
+                    .allowsHitTesting(false)
+            }
+
+            AutoGrowingTextView(text: $text, measuredHeight: $dynamicHeight)
+                .frame(height: max(InputFieldMetrics.singleLineTextHeight, dynamicHeight))
+                .padding(.horizontal, InputFieldMetrics.horizontalPadding)
+                .padding(.vertical, InputFieldMetrics.verticalPadding)
+        }
+        .background(Color(nsColor: .textBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: InputFieldMetrics.cornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: InputFieldMetrics.cornerRadius)
+                .stroke(Color.gray.opacity(InputFieldMetrics.borderOpacity), lineWidth: 1)
+        )
+        .frame(minHeight: max(InputFieldMetrics.minimumHeight, dynamicHeight + (InputFieldMetrics.verticalPadding * 2)))
+    }
+}
+
+struct AutoGrowingTextView: NSViewRepresentable {
+    @Binding var text: String
+    @Binding var measuredHeight: CGFloat
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, measuredHeight: $measuredHeight)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.borderType = .noBorder
+        scrollView.autohidesScrollers = true
+
+        let textView = NSTextView()
+        textView.delegate = context.coordinator
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticDataDetectionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isContinuousSpellCheckingEnabled = false
+        textView.isGrammarCheckingEnabled = false
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.allowsUndo = true
+        textView.textContainerInset = InputFieldMetrics.textInset
+        textView.font = InputFieldMetrics.font
+        textView.textColor = NSColor.labelColor
+        textView.alignment = .left
+        textView.string = text
+
+        if let textContainer = textView.textContainer {
+            textContainer.widthTracksTextView = true
+            textContainer.heightTracksTextView = false
+            textContainer.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+            textContainer.lineFragmentPadding = 0
+            textContainer.lineBreakMode = .byCharWrapping
+        }
+
+        scrollView.documentView = textView
+
+        DispatchQueue.main.async {
+            context.coordinator.updateHeight(for: textView)
+        }
+
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        guard let textView = nsView.documentView as? NSTextView else { return }
+
+        if textView.string != text {
+            textView.string = text
+        }
+
+        textView.font = InputFieldMetrics.font
+        textView.alignment = .left
+
+        DispatchQueue.main.async {
+            context.coordinator.updateHeight(for: textView)
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        @Binding var text: String
+        @Binding var measuredHeight: CGFloat
+
+        init(text: Binding<String>, measuredHeight: Binding<CGFloat>) {
+            _text = text
+            _measuredHeight = measuredHeight
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text = textView.string
+            updateHeight(for: textView)
+        }
+
+        func updateHeight(for textView: NSTextView) {
+            guard let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer else { return }
+
+            layoutManager.ensureLayout(for: textContainer)
+            let usedRect = layoutManager.usedRect(for: textContainer)
+            let newHeight = ceil(max(InputFieldMetrics.singleLineTextHeight, usedRect.height))
+
+            if abs(measuredHeight - newHeight) > 0.5 {
+                measuredHeight = newHeight
+            }
+        }
+    }
+}
+
+struct WorkingDirectoryInputRow: View {
+    @Binding var text: String
+    let onBrowse: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                AutoGrowingTextInput(placeholder: "Path", text: $text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button("Browse") {
+                    onBrowse()
+                }
+                .pointingHandCursor()
+            }
+
+            Text("Path (leave empty for home)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
 struct ScriptFormView: View {
     let mode: ScriptFormMode
     let onSave: (Script) -> Void
@@ -782,33 +1025,20 @@ struct ScriptFormView: View {
             
             Form {
                 Section("Script Name") {
-                    TextField("Name", text: $name)
-                        .textFieldStyle(.roundedBorder)
+                    FullWidthScriptNameField(placeholder: "Script Name", text: $name)
                 }
                 
                 Section("Command") {
-                    TextEditor(text: $command)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(height: 80)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                        )
-                    Text("e.g., npm run dev, ./scripts/start.sh, gkg server start")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        AutoGrowingTextInput(placeholder: "Command", text: $command)
+                        Text("e.g., npm run dev, ./scripts/start.sh, gkg server start")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
-                Section("Working Directory") {
-                    HStack {
-                        TextField("Path (leave empty for home)", text: $workingDirectory)
-                            .textFieldStyle(.roundedBorder)
-                        
-                        Button("Browse...") {
-                            selectDirectory()
-                        }
-                        .pointingHandCursor()
-                    }
+                Section("Directory") {
+                    WorkingDirectoryInputRow(text: $workingDirectory, onBrowse: selectDirectory)
                 }
 
                 
@@ -817,16 +1047,12 @@ struct ScriptFormView: View {
                 }
                 
                 Section {
-                    TextEditor(text: $killCommand)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(height: 60)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                        )
-                    Text("Optional: Commands to force kill when Stop doesn't work.\ne.g., pkill -f gkg && rm -f ~/.gkg/gkg.lock")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        AutoGrowingTextInput(placeholder: "Force kill command", text: $killCommand)
+                        Text("Optional: Commands to force kill when Stop doesn't work.\ne.g., pkill -f gkg && rm -f ~/.gkg/gkg.lock")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 } header: {
                     HStack {
                         Text("Force Kill Command")
@@ -883,6 +1109,7 @@ struct ScriptFormView: View {
             workingDirectory = url.path
         }
     }
+
 }
 
 struct LogsTabView: View {

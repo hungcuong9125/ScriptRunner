@@ -49,6 +49,28 @@ class ScriptManager: ObservableObject {
         logs[script.id] = LogStore()
         saveScripts()
     }
+
+    func duplicateScript(_ script: Script) -> Script {
+        let duplicated = Script(
+            name: "\(script.name) Copy",
+            command: script.command,
+            workingDirectory: script.workingDirectory,
+            isAutoStart: script.isAutoStart,
+            killCommand: script.killCommand
+        )
+
+        guard let sourceIndex = scripts.firstIndex(where: { $0.id == script.id }) else {
+            addScript(duplicated)
+            return duplicated
+        }
+
+        let insertIndex = scripts.index(after: sourceIndex)
+        scripts.insert(duplicated, at: insertIndex)
+        statuses[duplicated.id] = .stopped
+        logs[duplicated.id] = LogStore()
+        saveScripts()
+        return duplicated
+    }
     
     func updateScript(_ script: Script) {
         if let index = scripts.firstIndex(where: { $0.id == script.id }) {
@@ -64,6 +86,21 @@ class ScriptManager: ObservableObject {
         scripts.removeAll { $0.id == script.id }
         statuses.removeValue(forKey: script.id)
         logs.removeValue(forKey: script.id)
+        saveScripts()
+    }
+
+    func moveScript(id: UUID, by delta: Int) {
+        guard let sourceIndex = scripts.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let destinationIndex = sourceIndex + delta
+        guard scripts.indices.contains(destinationIndex) else {
+            return
+        }
+
+        let script = scripts.remove(at: sourceIndex)
+        scripts.insert(script, at: destinationIndex)
         saveScripts()
     }
     
@@ -267,17 +304,27 @@ class ScriptManager: ObservableObject {
     }
     
     private func sendCrashNotification(script: Script, exitCode: Int32) {
-        let content = UNMutableNotificationContent()
-        content.title = "Script Crashed"
-        content.body = "\(script.name) exited with code \(exitCode)"
-        content.sound = .default
-        
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: nil
-        )
-        
-        UNUserNotificationCenter.current().add(request)
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+                return
+            }
+
+            let content = UNMutableNotificationContent()
+            content.title = "Script Crashed"
+            content.body = "\(script.name) exited with code \(exitCode)"
+            content.sound = .default
+
+            let request = UNNotificationRequest(
+                identifier: UUID().uuidString,
+                content: content,
+                trigger: nil
+            )
+
+            center.add(request) { error in
+                guard let error else { return }
+                print("Failed to schedule crash notification: \(error.localizedDescription)")
+            }
+        }
     }
 }
