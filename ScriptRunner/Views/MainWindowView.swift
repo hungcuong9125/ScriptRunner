@@ -244,22 +244,27 @@ struct ScriptsTabView: View {
             if scriptManager.scripts.isEmpty {
                 emptyStateView
             } else {
-                List(selection: $selectedScriptId) {
+                List {
                     ForEach(scriptManager.scripts) { script in
-                        ScriptListRow(
-                            script: script,
-                            status: scriptManager.statuses[script.id] ?? .stopped,
-                            isSelected: selectedScriptId == script.id,
-                            onStart: { scriptManager.startScript(script) },
-                            onStop: { scriptManager.stopScript(script) },
-                            onViewLog: { onViewLog(script) }
-                        )
-                        .tag(script.id)
+                        Button {
+                            selectedScriptId = script.id
+                            isAddingScript = false
+                        } label: {
+                            ScriptListRow(
+                                script: script,
+                                status: scriptManager.statuses[script.id] ?? .stopped,
+                                isSelected: selectedScriptId == script.id,
+                                onStart: { scriptManager.startScript(script) },
+                                onStop: { scriptManager.stopScript(script) },
+                                onViewLog: { onViewLog(script) }
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(selectedScriptId == script.id ? Color.accentColor.opacity(0.15) : Color.clear)
                     }
                     .onDelete(perform: deleteScripts)
                 }
                 .listStyle(.inset)
-                .background(ListSelectionAppearanceBridge())
             }
             
             Divider()
@@ -390,19 +395,6 @@ struct ScriptsTabView: View {
     }
 }
 
-private struct ListSelectionAppearanceBridge: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        NSView(frame: .zero)
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let tableView = nsView.enclosingTableView else { return }
-            tableView.selectionHighlightStyle = .none
-        }
-    }
-}
-
 struct ScriptListRow: View {
     let script: Script
     let status: ScriptStatus
@@ -411,8 +403,6 @@ struct ScriptListRow: View {
     let onStop: () -> Void
     let onViewLog: () -> Void
 
-    private let selectedRowColor = Color.accentColor
-    
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: status.icon)
@@ -428,7 +418,7 @@ struct ScriptListRow: View {
                     if script.isAutoStart {
                         Image(systemName: "bolt.fill")
                             .font(.caption2)
-                            .foregroundColor(isSelected ? .white.opacity(0.9) : .orange)
+                            .foregroundColor(isSelected ? .accentColor : .orange)
                     }
                 }
                 
@@ -477,14 +467,12 @@ struct ScriptListRow: View {
         .contentShape(Rectangle())
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
-        .background(selectedRowBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
         .pointingHandCursor()
     }
     
     private var statusColor: Color {
         if isSelected {
-            return .white.opacity(0.9)
+            return .accentColor
         }
 
         switch status {
@@ -495,25 +483,15 @@ struct ScriptListRow: View {
     }
 
     private var primaryTextColor: Color {
-        isSelected ? .white : .primary
+        isSelected ? .accentColor : .primary
     }
 
     private var secondaryTextColor: Color {
-        isSelected ? .white.opacity(0.8) : .secondary
+        isSelected ? .accentColor.opacity(0.85) : .secondary
     }
 
     private var actionColor: Color {
-        isSelected ? .white.opacity(0.95) : .secondary
-    }
-
-    @ViewBuilder
-    private var selectedRowBackground: some View {
-        if isSelected {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(selectedRowColor)
-        } else {
-            Color.clear
-        }
+        isSelected ? .accentColor : .secondary
     }
 }
 
