@@ -21,20 +21,21 @@ jobs:
     - name: Select Xcode
       run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
 
-    - name: Build App
+    - name: Build Universal App
       run: |
         xcodebuild build \
           -project ScriptRunner.xcodeproj \
           -scheme ScriptRunner \
           -configuration Release \
           -derivedDataPath build \
+          ARCHS="arm64 x86_64" \
+          ONLY_ACTIVE_ARCH=NO \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO
 
-    - name: Find and Package App
+    - name: Verify Architecture
       run: |
-        # Find the built .app
         APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
         echo "Found app at: $APP_PATH"
 
@@ -43,20 +44,48 @@ jobs:
           exit 1
         fi
 
-        # Create ZIP of the .app bundle
+        # Check architectures
+        echo "=== Checking architectures ==="
+        lipo -info "$APP_PATH/Contents/MacOS/ScriptRunner"
+
+    - name: Create DMG
+      run: |
+        APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
+        VERSION=$(grep -A1 "MARKETING_VERSION" ScriptRunner.xcodeproj/project.pbxproj | grep -o '[0-9]\.[0-9]\.[0-9]' | head -1)
+        DMG_NAME="ScriptRunner_${VERSION}_universal.dmg"
+
+        echo "Creating DMG: $DMG_NAME"
+
+        # Create temporary directory for DMG contents
+        mkdir -p dmg_staging
+        cp -R "$APP_PATH" dmg_staging/
+
+        # Create symlink to Applications
+        ln -s /Applications dmg_staging/Applications
+
+        # Create DMG
+        hdiutil create \
+          -volname "ScriptRunner" \
+          -srcfolder dmg_staging \
+          -ov \
+          -format UDZO \
+          "$DMG_NAME"
+
+        # Verify DMG
+        echo "=== DMG created ==="
+        ls -lh "$DMG_NAME"
+
+        # Also create ZIP for compatibility
         cd "$(dirname "$APP_PATH")"
-        zip -r "$GITHUB_WORKSPACE/ScriptRunner.zip" ScriptRunner.app
-        cd "$GITHUB_WORKSPACE"
+        zip -r "$GITHUB_WORKSPACE/ScriptRunner_${VERSION}_universal.zip" ScriptRunner.app
 
-        # Verify
-        ls -la ScriptRunner.zip
-        unzip -l ScriptRunner.zip | head -20
-
-    - name: Upload Artifact
+    - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ScriptRunner
-        path: ScriptRunner.zip
+        path: |
+          ScriptRunner_*.dmg
+          ScriptRunner_*.zip
         retention-days: 30
 
   release:
@@ -65,15 +94,22 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-    - name: Download Artifact
+    - name: Download Artifacts
       uses: actions/download-artifact@v4
       with:
         name: ScriptRunner
         path: .
 
+    - name: List Files
+      run: |
+        echo "=== Files to release ==="
+        ls -lh
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         name: ScriptRunner ${{ github.ref_name }}
-        files: ScriptRunner.zip
+        files: |
+          ScriptRunner_*.dmg
+          ScriptRunner_*.zip
         generate_release_notes: true
