@@ -29,16 +29,30 @@ jobs:
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO
 
-    - name: Create .app bundle
+    - name: Find and Prepare App
       run: |
-        mkdir -p build/Release
-        cp -R build/Build/Products/Release/ScriptRunner.app build/Release/ScriptRunner.app
+        # Find the built .app
+        APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
+        echo "Found app at: $APP_PATH"
+
+        if [ -z "$APP_PATH" ]; then
+          echo "Error: ScriptRunner.app not found"
+          exit 1
+        fi
+
+        # Create staging directory
+        mkdir -p staging
+        cp -R "$APP_PATH" staging/ScriptRunner.app
+
+        # Verify
+        ls -la staging/
+        ls -la staging/ScriptRunner.app/
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ScriptRunner
-        path: build/Release/ScriptRunner.app
+        path: staging/ScriptRunner.app
         retention-days: 30
 
   release:
@@ -47,22 +61,31 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
     - name: Download Artifact
       uses: actions/download-artifact@v4
       with:
         name: ScriptRunner
         path: artifact
 
-    - name: Create ZIP
+    - name: Prepare Release
       run: |
-        cd artifact
-        zip -r ../ScriptRunner.zip ScriptRunner.app
+        echo "Artifact contents:"
+        ls -la artifact/
+
+        # The artifact should contain ScriptRunner.app directly
+        if [ -d "artifact/ScriptRunner.app" ]; then
+          echo "Creating ZIP..."
+          zip -r ScriptRunner.zip artifact/ScriptRunner.app
+          ls -la ScriptRunner.zip
+        else
+          echo "Error: ScriptRunner.app not found in artifact"
+          find artifact -type f
+          exit 1
+        fi
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
+        name: ScriptRunner ${{ github.ref_name }}
         files: ScriptRunner.zip
         generate_release_notes: true
