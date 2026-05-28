@@ -29,7 +29,7 @@ jobs:
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO
 
-    - name: Find and Prepare App
+    - name: Find and Package App
       run: |
         # Find the built .app
         APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
@@ -40,19 +40,20 @@ jobs:
           exit 1
         fi
 
-        # Create staging directory
-        mkdir -p staging
-        cp -R "$APP_PATH" staging/ScriptRunner.app
+        # Create ZIP of the .app bundle
+        cd "$(dirname "$APP_PATH")"
+        zip -r "$GITHUB_WORKSPACE/ScriptRunner.zip" ScriptRunner.app
+        cd "$GITHUB_WORKSPACE"
 
         # Verify
-        ls -la staging/
-        ls -la staging/ScriptRunner.app/
+        ls -la ScriptRunner.zip
+        unzip -l ScriptRunner.zip | head -20
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ScriptRunner
-        path: staging/ScriptRunner.app
+        path: ScriptRunner.zip
         retention-days: 30
 
   release:
@@ -65,23 +66,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: ScriptRunner
-        path: artifact
-
-    - name: Prepare Release
-      run: |
-        echo "Artifact contents:"
-        ls -la artifact/
-
-        # The artifact should contain ScriptRunner.app directly
-        if [ -d "artifact/ScriptRunner.app" ]; then
-          echo "Creating ZIP..."
-          zip -r ScriptRunner.zip artifact/ScriptRunner.app
-          ls -la ScriptRunner.zip
-        else
-          echo "Error: ScriptRunner.app not found in artifact"
-          find artifact -type f
-          exit 1
-        fi
+        path: .
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
