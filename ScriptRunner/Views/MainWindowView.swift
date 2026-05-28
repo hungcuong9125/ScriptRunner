@@ -521,6 +521,7 @@ enum ScriptFormMode {
 }
 
 struct ScriptDetailView: View {
+    @EnvironmentObject var scriptManager: ScriptManager
     let script: Script
     let scriptIndex: Int?
     let totalScripts: Int
