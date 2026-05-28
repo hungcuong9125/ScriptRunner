@@ -1233,10 +1233,12 @@ struct LogsTabView: View {
             
             Divider()
             
-            if selectedScript == nil {
-                emptyStateView
-            } else {
-                logContentView
+            Group {
+                if selectedScript == nil {
+                    emptyStateView
+                } else {
+                    logContentView
+                }
             }
             
             Divider()
@@ -1340,10 +1342,12 @@ struct LogsTabView: View {
     }
     
     private var logContentView: some View {
-        if let script = selectedScript, let store = scriptManager.logs[script.id] {
-            LogContentView(logStore: store, autoScroll: autoScroll, searchText: searchText)
-        } else {
-            emptyStateView
+        Group {
+            if let script = selectedScript, let store = scriptManager.logs[script.id] {
+                LogContentView(logStore: store, autoScroll: autoScroll, searchText: searchText)
+            } else {
+                emptyStateView
+            }
         }
     }
     

@@ -1,21 +1,25 @@
 # ScriptRunner
 
-A simple macOS Menu Bar application to manage and run scripts in the background.
+A macOS Menu Bar application to manage and run scripts in the background.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift 5](https://img.shields.io/badge/Swift-5-orange)
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-blue)
+![Version](https://img.shields.io/badge/version-0.5.4-green)
+
+![ScriptRunner Screenshot](docs/images/screenshot.png)
 
 ## Features
 
 - 🖥️ **Menu Bar App** - Lives in your menu bar, always accessible
 - ▶️ **Run Scripts** - Execute shell commands in the background
 - 📊 **Status Indicators** - See running/stopped/crashed status at a glance
-- 📜 **Real-time Logs** - View stdout/stderr with search and auto-scroll
+- 📜 **Real-time Logs** - View stdout/stderr with search, auto-scroll, and copy
 - ⚡ **Auto-start** - Automatically run selected scripts when app launches
 - 🔔 **Notifications** - Get notified when scripts crash
 - 💾 **Export/Import** - Backup and share your script configurations
-- ⌨️ **Keyboard Shortcuts** - Quick access to common actions
+- 📋 **Duplicate Scripts** - Quick duplicate with one click
+- 🗑️ **Force Kill** - Custom kill commands for stubborn processes
 
 ## Installation
 
@@ -23,7 +27,7 @@ A simple macOS Menu Bar application to manage and run scripts in the background.
 
 1. Open `ScriptRunner.xcodeproj` in Xcode 15+
 2. Select your development team in Signing & Capabilities
-3. Build and run (⌘R)
+3. Build and run (Cmd+R)
 4. Optionally, archive and export for distribution
 
 ### Requirements
@@ -36,28 +40,32 @@ A simple macOS Menu Bar application to manage and run scripts in the background.
 ### Adding a Script
 
 1. Click the terminal icon in the menu bar
-2. Click "Add" button
+2. Click "+ Add Script" button
 3. Fill in:
    - **Name**: A friendly name for your script
    - **Command**: The shell command to execute (e.g., `npm run dev`)
-   - **Working Directory**: Where to run the command (optional)
+   - **Working Directory**: Where to run the command (optional, defaults to Home)
    - **Auto-start**: Enable to run automatically on app launch
+   - **Kill Command**: Optional custom command to force stop the script
 
 ### Managing Scripts
 
 - **Start/Stop**: Click the play/stop buttons on each script
 - **Restart**: Available for running scripts
 - **View Log**: Click the document icon to see output
-- **Edit/Delete**: Right-click on a script for more options
+- **Edit**: Click "Edit" button to modify script settings
+- **Duplicate**: Create a copy of an existing script
+- **Delete**: Remove scripts you no longer need
+- **Reorder**: Move scripts up/down in the list
 
 ### Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| ⌘N | Add new script |
-| ⌘⇧R | Start all scripts |
-| ⌘. | Stop all scripts |
-| ⌘Q | Quit application |
+| Cmd+N | Add new script |
+| Cmd+Shift+R | Start all scripts |
+| Cmd+. | Stop all scripts |
+| Cmd+Q | Quit application |
 
 ## Example Scripts
 
@@ -67,14 +75,14 @@ A simple macOS Menu Bar application to manage and run scripts in the background.
 Name: GKG Server
 Command: gkg server start
 Working Directory: (leave empty)
-Auto-start: ✓
+Auto-start: Yes
 ```
 
 ```
 Name: Mail Agent MCP
 Command: scripts/run_server_with_token.sh
 Working Directory: /Users/yourname/Developer/TOOLS/mcp_agent_mail
-Auto-start: ✓
+Auto-start: Yes
 ```
 
 ### Development Servers
@@ -106,41 +114,36 @@ Scripts are stored in UserDefaults and persist between sessions.
 
 ```
 ScriptRunner/
-├── ScriptRunnerApp.swift     # App entry point
-├── AppDelegate.swift         # Lifecycle & notifications
+├── ScriptRunnerApp.swift          # App entry point
+├── AppDelegate.swift              # Lifecycle & notifications
 ├── Models/
-│   ├── Script.swift          # Script data model
-│   └── LogEntry.swift        # Log entry model
+│   ├── Script.swift               # Script data model
+│   └── LogEntry.swift             # Log entry model & LogStore
 ├── ViewModels/
-│   └── ScriptManager.swift   # Core business logic
+│   └── ScriptManager.swift        # Core business logic
+├── Services/
+│   ├── ShellExecutor.swift        # Shell command execution
+│   └── WindowManager.swift        # Window management
+├── Extensions/
+│   ├── Cursor.swift               # Custom cursor modifiers
+│   └── DateFormatter+ScriptRunner.swift  # Shared date formatter
 └── Views/
-    ├── MenuBarView.swift     # Main menu bar UI
-    ├── ScriptEditorView.swift # Add/Edit dialog
-    ├── LogViewerView.swift   # Log viewer window
-    └── SettingsView.swift    # Settings window
+    ├── MainWindowView.swift       # Main window with all tabs
+    └── MenuBarView.swift          # Menu bar popover UI
 ```
 
-## Future Improvements
+## Recent Changes (v0.5.4)
 
-Here are planned features for future versions:
-
-### High Priority
-- [ ] **Script Groups** - Organize scripts by project/category
-- [ ] **Launch at Login** - Option to start app automatically on macOS login
-- [ ] **Script Dependencies** - Start scripts in order with dependencies
-
-### Medium Priority
-- [ ] **Environment Variables** - Custom env vars per script
-- [ ] **Script Templates** - Pre-defined templates for common setups
-- [ ] **Health Checks** - Periodic checks to verify scripts are responding
-- [ ] **Auto-restart** - Automatically restart crashed scripts
-
-### Nice to Have
-- [ ] **Custom Icons** - Per-script icons in menu
-- [ ] **Statistics** - Track uptime, restart count, etc.
-- [ ] **Remote Scripts** - SSH to remote servers
-- [ ] **Scheduled Execution** - Cron-like scheduling
-- [ ] **Multi-window Logs** - Open multiple log windows simultaneously
+- Fixed clear log button not working
+- Fixed restart race condition with DispatchWorkItem cancellation
+- Fixed weak memory captures in termination handlers
+- Added UTF-8 buffer handling for proper encoding
+- Added thread safety with NSLock for buffer operations
+- Improved log viewer with search highlighting
+- Added copy buttons for script details
+- Added clear confirmation dialog
+- Fixed NSCursor push/pop imbalance
+- Added notification-based navigation from menu bar
 
 ## Troubleshooting
 
