@@ -18,6 +18,7 @@
 		012 /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114 /* MainWindowView.swift */; };
 		013 /* ShellExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115 /* ShellExecutor.swift */; };
 		014 /* Cursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116 /* Cursor.swift */; };
+		015 /* DateFormatter+ScriptRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* DateFormatter+ScriptRunner.swift */; };
 /* End PBXBuildFile section */
 
 
@@ -37,6 +38,7 @@
 		114 /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowView.swift; sourceTree = "<group>"; };
 		115 /* ShellExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellExecutor.swift; sourceTree = "<group>"; };
 		116 /* Cursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cursor.swift; sourceTree = "<group>"; };
+		117 /* DateFormatter+ScriptRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DateFormatter+ScriptRunner.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 
@@ -125,6 +127,7 @@
 			isa = PBXGroup;
 			children = (
 				116 /* Cursor.swift */,
+				117 /* DateFormatter+ScriptRunner.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -210,6 +213,7 @@
 				012 /* MainWindowView.swift in Sources */,
 				013 /* ShellExecutor.swift in Sources */,
 				014 /* Cursor.swift in Sources */,
+				015 /* DateFormatter+ScriptRunner.swift in Sources */,
 			);
 
 			runOnlyForDeploymentPostprocessing = 0;
@@ -364,7 +368,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.5.2;
+				MARKETING_VERSION = 0.5.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.scriptrunner.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -396,7 +400,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.5.2;
+				MARKETING_VERSION = 0.5.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.scriptrunner.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

@@ -6,9 +6,9 @@ extension View {
     func pointingHandCursor() -> some View {
         self.onHover { isHovering in
             if isHovering {
-                NSCursor.pointingHand.push()
+                NSCursor.pointingHand.set()
             } else {
-                NSCursor.pop()
+                NSCursor.arrow.set()
             }
         }
     }
@@ -17,9 +17,9 @@ extension View {
     func hoverCursor(_ cursor: NSCursor) -> some View {
         self.onHover { isHovering in
             if isHovering {
-                cursor.push()
+                cursor.set()
             } else {
-                NSCursor.pop()
+                NSCursor.arrow.set()
             }
         }
     }

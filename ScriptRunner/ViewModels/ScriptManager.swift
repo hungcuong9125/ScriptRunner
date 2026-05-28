@@ -12,7 +12,8 @@ class ScriptManager: ObservableObject {
     private var handles: [UUID: ExecutorHandle] = [:]
     private let executor: CommandExecutor = ShellExecutor()
     private let storageKey = "ScriptRunner.scripts"
-    
+    private var pendingRestarts: [UUID: DispatchWorkItem] = [:]
+
     var hasRunningScripts: Bool {
         statuses.values.contains { $0 == .running }
     }
@@ -145,9 +146,11 @@ class ScriptManager: ObservableObject {
                     logStore.append(output, isError: isError)
                 },
 
-                terminationHandler: { [weak self] exitCode in
-                    guard let self = self else { return }
-                    
+                terminationHandler: { [weak self, weak logStore] exitCode in
+                    guard let self = self,
+                          self.scripts.contains(where: { $0.id == scriptId }),
+                          let logStore = logStore else { return }
+
                     self.handles.removeValue(forKey: scriptId)
                     
                     if exitCode == 0 {
@@ -194,15 +197,23 @@ class ScriptManager: ObservableObject {
     
     func restartScript(_ script: Script) {
         let scriptId = script.id
+        pendingRestarts[scriptId]?.cancel()
+
+        guard handles[script.id]?.isRunning == true else {
+            startScript(script)
+            return
+        }
+
         stopScript(script)
-        
-        // Wait a bit longer for graceful shutdown
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+        let workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
+            self.pendingRestarts.removeValue(forKey: scriptId)
             if let script = self.scripts.first(where: { $0.id == scriptId }) {
                 self.startScript(script)
             }
         }
+        pendingRestarts[scriptId] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
     }
     
     /// Execute the custom kill command for a script
@@ -235,22 +246,21 @@ class ScriptManager: ObservableObject {
                     logStore.append(output, isError: isError)
                 },
 
-                terminationHandler: { [weak self] exitCode in
-                    guard let self = self else { return }
-                    
+                terminationHandler: { [weak self, weak logStore] exitCode in
+                    guard let self = self, let logStore = logStore else { return }
+
                     if exitCode == 0 {
                         logStore.append("[\(self.formattedDate())] Force kill completed successfully")
                     } else {
                         logStore.append("[\(self.formattedDate())] Force kill exited with code \(exitCode)", isError: true)
                     }
-                    
+
                     // Update status to stopped after kill command
                     self.statuses[scriptId] = .stopped
                 }
             )
             
             logStore.append("[\(formattedDate())] Force kill command started")
-            statuses[script.id] = .stopped
             
         } catch {
             logStore.append("[\(formattedDate())] Failed to execute kill command: \(error.localizedDescription)", isError: true)
@@ -298,9 +308,7 @@ class ScriptManager: ObservableObject {
     }
     
     private func formattedDate() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        return formatter.string(from: Date())
+        DateFormatter.scriptRunnerTime.string(from: Date())
     }
     
     private func sendCrashNotification(script: Script, exitCode: Int32) {

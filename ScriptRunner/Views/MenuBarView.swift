@@ -69,7 +69,7 @@ struct MenuBarView: View {
     
     private var scriptListView: some View {
         ScrollView {
-            LazyVStack(spacing: 2) {
+            VStack(spacing: 2) {
                 ForEach(scriptManager.scripts) { script in
                     QuickScriptRow(
                         script: script,
@@ -103,7 +103,7 @@ struct MenuBarView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
         }
-        .frame(maxHeight: 250)
+        .frame(minHeight: min(CGFloat(scriptManager.scripts.count) * 36, 250), maxHeight: 250)
     }
     
     private var footerView: some View {

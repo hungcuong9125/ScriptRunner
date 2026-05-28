@@ -177,22 +177,30 @@ final class ShellExecutor: CommandExecutor {
         let inputPipe = Pipe()
         process.standardInput = inputPipe
         
+        // Buffers to accumulate incomplete UTF-8 sequences across reads
+        var pendingStdout = Data()
+        var pendingStderr = Data()
+
         // Handle stdout
         outputPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
-            if let output = String(data: data, encoding: .utf8) {
+            pendingStdout.append(data)
+            if let output = String(data: pendingStdout, encoding: .utf8) {
+                pendingStdout = Data()
                 DispatchQueue.main.async {
                     outputHandler(output, false)
                 }
             }
         }
-        
+
         // Handle stderr
         errorPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
-            if let output = String(data: data, encoding: .utf8) {
+            pendingStderr.append(data)
+            if let output = String(data: pendingStderr, encoding: .utf8) {
+                pendingStderr = Data()
                 DispatchQueue.main.async {
                     outputHandler(output, true)
                 }

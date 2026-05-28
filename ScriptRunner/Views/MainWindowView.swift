@@ -53,6 +53,26 @@ struct MainWindowView: View {
         .onAppear {
             handleInitialAction()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToAction)) { notification in
+            if let tab = notification.userInfo?["tab"] as? MainTab {
+                selectedTab = tab
+            }
+            if let action = notification.userInfo?["action"] as? MainWindowAction {
+                switch action {
+                case .addScript:
+                    selectedTab = .scripts
+                    isAddingScript = true
+                case .viewLog(let script):
+                    selectedTab = .logs
+                    selectedScriptForLog = script
+                case .editScript(let script):
+                    selectedTab = .scripts
+                    selectedScriptId = script.id
+                case .none:
+                    break
+                }
+            }
+        }
     }
     
     private var tabHeader: some View {
@@ -523,6 +543,7 @@ struct ScriptDetailView: View {
     @State private var editKillCommand: String = ""
     @State private var showDeleteConfirm = false
     @State private var showForceKillConfirm = false
+    @State private var copiedField: String?
 
     private var canMoveUp: Bool {
         guard let scriptIndex else { return false }
@@ -587,24 +608,36 @@ struct ScriptDetailView: View {
                 }
                 
                 DetailSection(title: "Command") {
-                    Text(script.command)
-                        .font(.system(.body, design: .monospaced))
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(6)
-                        .textSelection(.enabled)
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(script.command)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(6)
+                            .textSelection(.enabled)
+                        
+                        CopyButton(text: script.command, fieldName: "command", copiedField: $copiedField)
+                    }
                 }
                 
                 DetailSection(title: "Working Directory") {
-                    Text(script.workingDirectory.isEmpty ? "~ (Home)" : script.workingDirectory)
-                        .font(.system(.body, design: .monospaced))
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(6)
-                        .foregroundColor(script.workingDirectory.isEmpty ? .secondary : .primary)
-                        .textSelection(.enabled)
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(script.workingDirectory.isEmpty ? "~ (Home)" : script.workingDirectory)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(6)
+                            .foregroundColor(script.workingDirectory.isEmpty ? .secondary : .primary)
+                            .textSelection(.enabled)
+                        
+                        CopyButton(
+                            text: script.workingDirectory.isEmpty ? "~" : script.workingDirectory,
+                            fieldName: "workdir",
+                            copiedField: $copiedField
+                        )
+                    }
                 }
                 
                 DetailSection(title: "Options") {
@@ -637,10 +670,7 @@ struct ScriptDetailView: View {
                             .pointingHandCursor()
                             
                             Button(action: {
-                                onStop()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                    onStart()
-                                }
+                                scriptManager.restartScript(script)
                             }) {
                                 Label("Restart", systemImage: "arrow.clockwise")
                             }
@@ -854,6 +884,41 @@ struct DetailSection<Content: View>: View {
             
             content
         }
+    }
+}
+
+struct CopyButton: View {
+    let text: String
+    let fieldName: String
+    @Binding var copiedField: String?
+    
+    private var isCopied: Bool {
+        copiedField == fieldName
+    }
+    
+    var body: some View {
+        Button(action: {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            copiedField = fieldName
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                if copiedField == fieldName {
+                    copiedField = nil
+                }
+            }
+        }) {
+            Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 12))
+                .foregroundColor(isCopied ? .green : .secondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(6)
+        .help(isCopied ? "Copied!" : "Copy to clipboard")
+        .pointingHandCursor()
+        .animation(.easeInOut(duration: 0.15), value: isCopied)
     }
 }
 
@@ -1145,23 +1210,13 @@ struct LogsTabView: View {
     @Binding var selectedScript: Script?
     @State private var autoScroll = true
     @State private var searchText = ""
-    
+    @State private var showClearConfirm = false
+
     private var logStore: LogStore? {
         guard let script = selectedScript else { return nil }
         return scriptManager.logs[script.id]
     }
     
-    private var filteredEntries: [LogEntry] {
-        guard let store = logStore else { return [] }
-        
-        if searchText.isEmpty {
-            return store.entries
-        }
-        
-        return store.entries.filter {
-            $0.message.localizedCaseInsensitiveContains(searchText)
-        }
-    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -1176,11 +1231,17 @@ struct LogsTabView: View {
             }
             
             Divider()
-            
+
             footerView
         }
+        .onChange(of: scriptManager.scripts) { _, newScripts in
+            if let script = selectedScript,
+               !newScripts.contains(where: { $0.id == script.id }) {
+                selectedScript = nil
+            }
+        }
     }
-    
+
     private var toolbarView: some View {
         HStack(spacing: 12) {
             Picker("Script", selection: $selectedScript) {
@@ -1233,15 +1294,23 @@ struct LogsTabView: View {
                 .toggleStyle(.checkbox)
             
             Button(action: {
-                if let script = selectedScript {
-                    scriptManager.clearLog(for: script)
-                }
+                showClearConfirm = true
             }) {
                 Label("Clear", systemImage: "trash")
             }
             .buttonStyle(.borderless)
             .disabled(selectedScript == nil)
             .pointingHandCursor()
+            .alert("Clear Logs", isPresented: $showClearConfirm) {
+                Button("Cancel", role: .cancel) { }
+                Button("Clear", role: .destructive) {
+                    if let script = selectedScript {
+                        scriptManager.clearLog(for: script)
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to clear all logs for this script?")
+            }
         }
 
         .padding()
@@ -1262,31 +1331,16 @@ struct LogsTabView: View {
     }
     
     private var logContentView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 1) {
-                    ForEach(filteredEntries) { entry in
-                        LogEntryRow(entry: entry)
-                            .id(entry.id)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-            }
-            .background(Color(nsColor: .textBackgroundColor))
-            .onChange(of: logStore?.entries.count ?? 0) { oldValue, newValue in
-                if autoScroll, let lastEntry = filteredEntries.last {
-                    withAnimation(.easeOut(duration: 0.1)) {
-                        proxy.scrollTo(lastEntry.id, anchor: .bottom)
-                    }
-                }
-            }
+        if let script = selectedScript, let store = scriptManager.logs[script.id] {
+            LogContentView(logStore: store, autoScroll: autoScroll, searchText: searchText)
+        } else {
+            emptyStateView
         }
     }
     
     private var footerView: some View {
         HStack {
-            Text("\(filteredEntries.count) entries")
+            Text("\(searchText.isEmpty ? (logStore?.count ?? 0) : (logStore?.entries.filter { $0.message.localizedCaseInsensitiveContains(searchText) }.count ?? 0)) entries")
                 .font(.caption)
                 .foregroundColor(.secondary)
             
@@ -1330,6 +1384,29 @@ struct LogsTabView: View {
         case .running: return .green
         case .crashed: return .red
         }
+    }
+}
+
+struct LogContentView: View {
+    @ObservedObject var logStore: LogStore
+    let autoScroll: Bool
+    let searchText: String
+
+    private var filteredEntries: [LogEntry] {
+        if searchText.isEmpty {
+            return logStore.entries
+        }
+        return logStore.entries.filter {
+            $0.message.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    var body: some View {
+        SelectableLogView(
+            entries: filteredEntries,
+            autoScroll: autoScroll,
+            searchText: searchText
+        )
     }
 }
 
@@ -1458,6 +1535,127 @@ struct SettingsTabView: View {
                 showingImportError = true
             }
         }
+    }
+}
+
+struct SelectableLogView: NSViewRepresentable {
+    private static let timestampPattern = try! NSRegularExpression(pattern: #"^\[?\d{2}:\d{2}:\d{2}\]?\s*"#)
+
+    let entries: [LogEntry]
+    let autoScroll: Bool
+    let searchText: String
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .textBackgroundColor
+        scrollView.borderType = .noBorder
+        
+        let textView = NSTextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.isRichText = true
+        textView.font = NSFont.monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        textView.textContainerInset = NSSize(width: 12, height: 8)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        
+        if let textContainer = textView.textContainer {
+            textContainer.widthTracksTextView = true
+            textContainer.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+        }
+        
+        scrollView.documentView = textView
+        return scrollView
+    }
+    
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        guard let textView = nsView.documentView as? NSTextView,
+              let textStorage = textView.textStorage else { return }
+        let coordinator = context.coordinator
+
+        let searchTextChanged = searchText != coordinator.lastSearchText
+
+        let needsFullRebuild = entries.count < coordinator.lastEntryCount ||
+            coordinator.lastEntryCount == 0 ||
+            (entries.isEmpty && coordinator.lastEntryCount > 0) ||
+            (!entries.isEmpty && coordinator.firstEntryId != entries.first?.id) ||
+            searchTextChanged
+
+        if needsFullRebuild {
+            textStorage.setAttributedString(buildAttributedString(from: entries))
+            coordinator.lastEntryCount = entries.count
+            coordinator.firstEntryId = entries.first?.id
+            coordinator.lastSearchText = searchText
+        } else if entries.count > coordinator.lastEntryCount {
+            let newEntries = Array(entries[coordinator.lastEntryCount...])
+            let appendStr = NSMutableAttributedString()
+            if coordinator.lastEntryCount > 0 {
+                appendStr.append(NSAttributedString(string: "\n"))
+            }
+            appendStr.append(buildAttributedString(from: Array(newEntries)))
+            textStorage.append(appendStr)
+            coordinator.lastEntryCount = entries.count
+        }
+        
+        if autoScroll {
+            textView.scrollToEndOfDocument(nil)
+        }
+    }
+    
+    private func buildAttributedString(from logEntries: [LogEntry]) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let monoFont = NSFont.monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        
+        // Paragraph style with tab stop for timestamp column alignment
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.tabStops = [NSTextTab(textAlignment: .left, location: 70)]
+        paragraphStyle.defaultTabInterval = 70
+        
+        for (index, entry) in logEntries.enumerated() {
+            let timestampAttrs: [NSAttributedString.Key: Any] = [
+                .font: monoFont,
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .paragraphStyle: paragraphStyle
+            ]
+            let messageAttrs: [NSAttributedString.Key: Any] = [
+                .font: monoFont,
+                .foregroundColor: entry.isError ? NSColor.systemRed : NSColor.labelColor
+            ]
+            
+            // Add timestamp column
+            result.append(NSAttributedString(string: entry.formattedTimestamp + "\t", attributes: timestampAttrs))
+            
+            // Strip duplicate [HH:MM:SS] prefix from message if present
+            var messageText = entry.message
+            let nsRange = NSRange(messageText.startIndex..., in: messageText)
+            if let match = Self.timestampPattern.firstMatch(in: messageText, range: nsRange),
+               let range = Range(match.range, in: messageText) {
+                messageText = String(messageText[range.upperBound...])
+            }
+            result.append(NSAttributedString(string: messageText, attributes: messageAttrs))
+            
+            if index < logEntries.count - 1 {
+                result.append(NSAttributedString(string: "\n"))
+            }
+        }
+        
+        return result
+    }
+    
+    final class Coordinator {
+        var lastEntryCount: Int = 0
+        var firstEntryId: UUID?
+        var lastSearchText: String = ""
     }
 }
 

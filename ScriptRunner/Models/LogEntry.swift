@@ -14,14 +14,13 @@ struct LogEntry: Identifiable, Equatable {
     }
     
     var formattedTimestamp: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        return formatter.string(from: timestamp)
+        DateFormatter.scriptRunnerTime.string(from: timestamp)
     }
 }
 
 class LogStore: ObservableObject {
     @Published private(set) var entries: [LogEntry] = []
+    var count: Int { entries.count }
     private let maxEntries = 1000
     
     func append(_ message: String, isError: Bool = false) {

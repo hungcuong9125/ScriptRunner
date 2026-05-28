@@ -15,6 +15,11 @@ class WindowManager {
         scriptManager: ScriptManager
     ) {
         if let existingWindow = mainWindow {
+            NotificationCenter.default.post(
+                name: .navigateToAction,
+                object: nil,
+                userInfo: ["tab": tab, "action": action]
+            )
             centerWindow(existingWindow)
             existingWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -104,4 +109,8 @@ class MainWindowDelegate: NSObject, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         onClose()
     }
+}
+
+extension Notification.Name {
+    static let navigateToAction = Notification.Name("ScriptRunner.navigateToAction")
 }
