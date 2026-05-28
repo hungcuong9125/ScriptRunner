@@ -180,17 +180,23 @@ final class ShellExecutor: CommandExecutor {
         // Buffers to accumulate incomplete UTF-8 sequences across reads
         var pendingStdout = Data()
         var pendingStderr = Data()
+        let stdoutLock = NSLock()
+        let stderrLock = NSLock()
 
         // Handle stdout
         outputPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
+            stdoutLock.lock()
             pendingStdout.append(data)
             if let output = String(data: pendingStdout, encoding: .utf8) {
                 pendingStdout = Data()
+                stdoutLock.unlock()
                 DispatchQueue.main.async {
                     outputHandler(output, false)
                 }
+            } else {
+                stdoutLock.unlock()
             }
         }
 
@@ -198,12 +204,16 @@ final class ShellExecutor: CommandExecutor {
         errorPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
+            stderrLock.lock()
             pendingStderr.append(data)
             if let output = String(data: pendingStderr, encoding: .utf8) {
                 pendingStderr = Data()
+                stderrLock.unlock()
                 DispatchQueue.main.async {
                     outputHandler(output, true)
                 }
+            } else {
+                stderrLock.unlock()
             }
         }
         
@@ -212,10 +222,27 @@ final class ShellExecutor: CommandExecutor {
             // Clean up handlers
             outputPipe.fileHandleForReading.readabilityHandler = nil
             errorPipe.fileHandleForReading.readabilityHandler = nil
-            
+
+            // Flush remaining UTF-8 buffers
+            stdoutLock.lock()
+            let remainingStdout = pendingStdout
+            pendingStdout = Data()
+            stdoutLock.unlock()
+            if !remainingStdout.isEmpty, let output = String(data: remainingStdout, encoding: .utf8), !output.isEmpty {
+                DispatchQueue.main.async { outputHandler(output, false) }
+            }
+
+            stderrLock.lock()
+            let remainingStderr = pendingStderr
+            pendingStderr = Data()
+            stderrLock.unlock()
+            if !remainingStderr.isEmpty, let output = String(data: remainingStderr, encoding: .utf8), !output.isEmpty {
+                DispatchQueue.main.async { outputHandler(output, true) }
+            }
+
             // Close pipes
             try? inputPipe.fileHandleForWriting.close()
-            
+
             DispatchQueue.main.async {
                 let status = proc.terminationStatus
                 // SIGTERM (15) is a normal graceful termination, treat as success

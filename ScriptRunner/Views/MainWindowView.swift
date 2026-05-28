@@ -1216,8 +1216,16 @@ struct LogsTabView: View {
         guard let script = selectedScript else { return nil }
         return scriptManager.logs[script.id]
     }
-    
-    
+
+    private var filteredEntryCount: Int {
+        guard let store = logStore else { return 0 }
+        if searchText.isEmpty {
+            return store.count
+        }
+        return store.entries.filter { $0.message.localizedCaseInsensitiveContains(searchText) }.count
+    }
+
+
     var body: some View {
         VStack(spacing: 0) {
             toolbarView
@@ -1340,7 +1348,7 @@ struct LogsTabView: View {
     
     private var footerView: some View {
         HStack {
-            Text("\(searchText.isEmpty ? (logStore?.count ?? 0) : (logStore?.entries.filter { $0.message.localizedCaseInsensitiveContains(searchText) }.count ?? 0)) entries")
+            Text("\(filteredEntryCount) entries")
                 .font(.caption)
                 .foregroundColor(.secondary)
             
