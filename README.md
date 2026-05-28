@@ -6,6 +6,7 @@ A macOS Menu Bar application to manage and run scripts in the background.
 ![Swift 5](https://img.shields.io/badge/Swift-5-orange)
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-blue)
 ![Version](https://img.shields.io/badge/version-0.5.4-green)
+[![Build](https://github.com/hungcuong9125/ScriptRunner/actions/workflows/build.yml/badge.svg)](https://github.com/hungcuong9125/ScriptRunner/actions/workflows/build.yml)
 
 ![ScriptRunner Screenshot](docs/images/screenshot.png)
 
@@ -22,6 +23,18 @@ A macOS Menu Bar application to manage and run scripts in the background.
 - 🗑️ **Force Kill** - Custom kill commands for stubborn processes
 
 ## Installation
+
+### Download
+
+Download the latest build from [Releases](https://github.com/hungcuong9125/ScriptRunner/releases).
+
+### macOS Users
+
+The app is not signed with an Apple Developer certificate yet. If macOS blocks the app:
+
+```bash
+xattr -cr /Applications/ScriptRunner.app
+```
 
 ### Build from Source
 
