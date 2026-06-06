@@ -76,13 +76,13 @@ jobs:
         retention-days: 30
 
   build-x86_64:
-    runs-on: macos-15
+    runs-on: macos-13
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
     - name: Select Xcode
-      run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+      run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
 
     - name: Build x86_64
       run: |
