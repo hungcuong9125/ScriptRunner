@@ -1522,8 +1522,9 @@ struct SettingsTabView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
+        .scrollContentBackground(.hidden)
         .background(Color.white)
+        .padding()
         .alert("Export Successful", isPresented: $showingExportSuccess) {
             Button("OK", role: .cancel) {}
                 .pointingHandCursor()
