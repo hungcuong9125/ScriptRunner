@@ -34,6 +34,15 @@ jobs:
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO
 
+    - name: Ad-hoc Code Sign
+      run: |
+        APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
+        echo "Ad-hoc signing: $APP_PATH"
+        codesign --force --sign - "$APP_PATH"
+        codesign --verify --verbose "$APP_PATH"
+        echo "=== Code signature ==="
+        codesign -dvv "$APP_PATH" 2>&1 | head -5
+
     - name: Verify Architecture
       run: |
         APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
