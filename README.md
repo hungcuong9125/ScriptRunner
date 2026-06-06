@@ -5,7 +5,7 @@ A macOS Menu Bar application to manage and run scripts in the background.
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift 5](https://img.shields.io/badge/Swift-5-orange)
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-blue)
-![Version](https://img.shields.io/badge/version-0.5.4-green)
+![Version](https://img.shields.io/badge/version-0.5.5-green)
 [![Build](https://github.com/hungcuong9125/ScriptRunner/actions/workflows/build.yml/badge.svg)](https://github.com/hungcuong9125/ScriptRunner/actions/workflows/build.yml)
 
 ![ScriptRunner Screenshot](docs/images/screenshot.png)
@@ -144,6 +144,14 @@ ScriptRunner/
     ├── MainWindowView.swift       # Main window with all tabs
     └── MenuBarView.swift          # Menu bar popover UI
 ```
+
+## Recent Changes (v0.5.5)
+
+- Fixed Stop not working — termination handler never cleaned up due to Date() comparison bug (nanosecond precision)
+- Fixed Restart race condition — replaced timer-based restart with pendingRestartIds set, restart now triggers from terminationHandler after cleanup
+- Added log-to-file — logs are now written to `~/Library/Logs/ScriptRunner/` in real-time
+- Added "Open Log File" button in Logs tab footer to open log file in Finder
+- App now shows main window (Scripts tab) centered on screen at launch instead of sitting silently in menu bar
 
 ## Recent Changes (v0.5.4)
 

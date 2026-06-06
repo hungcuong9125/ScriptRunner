@@ -6,6 +6,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         configureNotifications()
+        showMainWindowOnLaunch()
         startAutoStartScripts()
     }
     
@@ -18,6 +19,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         center.delegate = self
     }
     
+    private func showMainWindowOnLaunch() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            WindowManager.shared.openMainWindow(
+                tab: .scripts,
+                scriptManager: ScriptManager.shared
+            )
+        }
+    }
+
     private func startAutoStartScripts() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             ScriptManager.shared.startAutoStartScripts()

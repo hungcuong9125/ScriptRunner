@@ -1356,24 +1356,31 @@ struct LogsTabView: View {
             Text("\(filteredEntryCount) entries")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            
+
             if !searchText.isEmpty {
                 Text("(filtered)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
-            
+
             if let script = selectedScript {
+                Button(action: { openLogFile(for: script) }) {
+                    Label("Open Log File", systemImage: "folder")
+                }
+                .buttonStyle(.bordered)
+                .help("Open log file in Finder")
+                .pointingHandCursor()
+
                 let status = scriptManager.statuses[script.id] ?? .stopped
-                
+
                 if status == .running {
                     Button("Stop") {
                         scriptManager.stopScript(script)
                     }
                     .pointingHandCursor()
-                    
+
                     Button("Restart") {
                         scriptManager.restartScript(script)
                     }
@@ -1389,6 +1396,17 @@ struct LogsTabView: View {
 
         }
         .padding()
+    }
+
+    private func openLogFile(for script: Script) {
+        let path = scriptManager.logFilePath(for: script)
+        // Create the file if it doesn't exist
+        if !FileManager.default.fileExists(atPath: path) {
+            let dir = (path as NSString).deletingLastPathComponent
+            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: path, contents: nil)
+        }
+        NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
     }
     
     private func statusColor(for status: ScriptStatus) -> Color {

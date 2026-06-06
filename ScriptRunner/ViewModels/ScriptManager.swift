@@ -13,6 +13,19 @@ class ScriptManager: ObservableObject {
     private let executor: CommandExecutor = ShellExecutor()
     private let storageKey = "ScriptRunner.scripts"
     private var pendingRestarts: [UUID: DispatchWorkItem] = [:]
+    private var pendingRestartIds: Set<UUID> = []
+
+    /// Directory where log files are stored
+    static var logDirectory: String {
+        let home = ShellExecutor.realHomeDirectory
+        return (home as NSString).appendingPathComponent("Library/Logs/ScriptRunner")
+    }
+
+    /// Log file path for a specific script
+    func logFilePath(for script: Script) -> String {
+        let safeName = script.name.replacingOccurrences(of: "/", with: "-")
+        return "\(Self.logDirectory)/\(safeName)-\(script.id.uuidString.prefix(8)).log"
+    }
 
     var hasRunningScripts: Bool {
         statuses.values.contains { $0 == .running }
@@ -34,7 +47,7 @@ class ScriptManager: ObservableObject {
         scripts = decoded
         for script in scripts {
             statuses[script.id] = .stopped
-            logs[script.id] = LogStore()
+            logs[script.id] = LogStore(logFilePath: logFilePath(for: script))
         }
     }
     
@@ -47,7 +60,7 @@ class ScriptManager: ObservableObject {
     func addScript(_ script: Script) {
         scripts.append(script)
         statuses[script.id] = .stopped
-        logs[script.id] = LogStore()
+        logs[script.id] = LogStore(logFilePath: logFilePath(for: script))
         saveScripts()
     }
 
@@ -68,7 +81,7 @@ class ScriptManager: ObservableObject {
         let insertIndex = scripts.index(after: sourceIndex)
         scripts.insert(duplicated, at: insertIndex)
         statuses[duplicated.id] = .stopped
-        logs[duplicated.id] = LogStore()
+        logs[duplicated.id] = LogStore(logFilePath: logFilePath(for: duplicated))
         saveScripts()
         return duplicated
     }
@@ -116,7 +129,7 @@ class ScriptManager: ObservableObject {
             }
         }
         
-        let logStore = logs[script.id] ?? LogStore()
+        let logStore = logs[script.id] ?? LogStore(logFilePath: logFilePath(for: script))
         logs[script.id] = logStore
         
         let workingDir = script.effectiveWorkingDirectory
@@ -138,10 +151,13 @@ class ScriptManager: ObservableObject {
         
         do {
             let scriptId = script.id
+            // Capture instance ID before execute() — used to verify handle identity in terminationHandler
+            let handleInstanceId = UUID()
             let handle = try executor.execute(
                 command: script.command,
                 workingDirectory: workingDir,
                 environment: nil,
+                instanceId: handleInstanceId,
                 outputHandler: { output, isError in
                     logStore.append(output, isError: isError)
                 },
@@ -151,16 +167,26 @@ class ScriptManager: ObservableObject {
                           self.scripts.contains(where: { $0.id == scriptId }),
                           let logStore = logStore else { return }
 
-                    self.handles.removeValue(forKey: scriptId)
-                    
-                    if exitCode == 0 {
-                        self.statuses[scriptId] = .stopped
-                        logStore.append("[\(self.formattedDate())] Process exited normally")
-                    } else {
-                        self.statuses[scriptId] = .crashed(exitCode: exitCode)
-                        logStore.append("[\(self.formattedDate())] Process exited with code \(exitCode)", isError: true)
-                        if let script = self.scripts.first(where: { $0.id == scriptId }) {
-                            self.sendCrashNotification(script: script, exitCode: exitCode)
+                    // Only clean up if this handle is still the current one (prevents race condition during restart)
+                    if let currentHandle = self.handles[scriptId],
+                       currentHandle.instanceId == handleInstanceId {
+                        self.handles.removeValue(forKey: scriptId)
+
+                        if exitCode == 0 {
+                            self.statuses[scriptId] = .stopped
+                            logStore.append("[\(self.formattedDate())] Process exited normally")
+                        } else {
+                            self.statuses[scriptId] = .crashed(exitCode: exitCode)
+                            logStore.append("[\(self.formattedDate())] Process exited with code \(exitCode)", isError: true)
+                            if let script = self.scripts.first(where: { $0.id == scriptId }) {
+                                self.sendCrashNotification(script: script, exitCode: exitCode)
+                            }
+                        }
+
+                        // Trigger restart if one was pending
+                        if self.pendingRestartIds.remove(scriptId) != nil,
+                           let script = self.scripts.first(where: { $0.id == scriptId }) {
+                            self.startScript(script)
                         }
                     }
                 }
@@ -176,21 +202,25 @@ class ScriptManager: ObservableObject {
         }
     }
     
-    func stopScript(_ script: Script) {
+    func stopScript(_ script: Script, cancelPendingRestart: Bool = true) {
+        if cancelPendingRestart {
+            pendingRestartIds.remove(script.id)
+        }
+
         guard let handle = handles[script.id], handle.isRunning else {
             // Clean up if handle exists but not running
             handles.removeValue(forKey: script.id)
             statuses[script.id] = .stopped
             return
         }
-        
+
         if let logStore = logs[script.id] {
             logStore.append("[\(formattedDate())] Stopping process (PID: \(handle.processIdentifier))...")
         }
-        
+
         // Update status to indicate stopping
         handle.terminate()
-        
+
         // Note: Don't immediately remove handle or update status
         // Let the termination handler do it when process actually exits
     }
@@ -198,29 +228,22 @@ class ScriptManager: ObservableObject {
     func restartScript(_ script: Script) {
         let scriptId = script.id
         pendingRestarts[scriptId]?.cancel()
+        pendingRestartIds.remove(scriptId)
 
         guard handles[script.id]?.isRunning == true else {
             startScript(script)
             return
         }
 
-        stopScript(script)
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self = self else { return }
-            self.pendingRestarts.removeValue(forKey: scriptId)
-            if let script = self.scripts.first(where: { $0.id == scriptId }) {
-                self.startScript(script)
-            }
-        }
-        pendingRestarts[scriptId] = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
+        stopScript(script, cancelPendingRestart: false)
+        pendingRestartIds.insert(scriptId)
     }
     
     /// Execute the custom kill command for a script
     func forceKillScript(_ script: Script) {
         guard script.hasKillCommand else { return }
         
-        let logStore = logs[script.id] ?? LogStore()
+        let logStore = logs[script.id] ?? LogStore(logFilePath: logFilePath(for: script))
         logs[script.id] = logStore
         
         logStore.append("[\(formattedDate())] ══════════════════════════════════════")
@@ -242,6 +265,7 @@ class ScriptManager: ObservableObject {
                 command: script.killCommand,
                 workingDirectory: workingDir,
                 environment: nil,
+                instanceId: UUID(),
                 outputHandler: { output, isError in
                     logStore.append(output, isError: isError)
                 },

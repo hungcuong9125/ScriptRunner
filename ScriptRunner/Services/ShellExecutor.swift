@@ -6,6 +6,7 @@ protocol CommandExecutor {
         command: String,
         workingDirectory: String,
         environment: [String: String]?,
+        instanceId: UUID,
         outputHandler: @escaping (String, Bool) -> Void,
         terminationHandler: @escaping (Int32) -> Void
     ) throws -> ExecutorHandle
@@ -15,6 +16,7 @@ protocol CommandExecutor {
 protocol ExecutorHandle {
     var processIdentifier: Int32 { get }
     var isRunning: Bool { get }
+    var instanceId: UUID { get }
     func terminate()
     func forceTerminate()
     func sendSignal(_ signal: Int32)
@@ -122,6 +124,7 @@ final class ShellExecutor: CommandExecutor {
         command: String,
         workingDirectory: String,
         environment: [String: String]?,
+        instanceId: UUID = UUID(),
         outputHandler: @escaping (String, Bool) -> Void,
         terminationHandler: @escaping (Int32) -> Void
     ) throws -> ExecutorHandle {
@@ -260,7 +263,8 @@ final class ShellExecutor: CommandExecutor {
             process: process,
             inputPipe: inputPipe,
             outputPipe: outputPipe,
-            errorPipe: errorPipe
+            errorPipe: errorPipe,
+            instanceId: instanceId
         )
     }
 }
@@ -272,20 +276,23 @@ final class ProcessHandle: ExecutorHandle {
     private let outputPipe: Pipe
     private let errorPipe: Pipe
     private var terminationWorkItem: DispatchWorkItem?
-    
+
+    let instanceId: UUID
+
     var processIdentifier: Int32 {
         process.processIdentifier
     }
-    
+
     var isRunning: Bool {
         process.isRunning
     }
-    
-    init(process: Process, inputPipe: Pipe, outputPipe: Pipe, errorPipe: Pipe) {
+
+    init(process: Process, inputPipe: Pipe, outputPipe: Pipe, errorPipe: Pipe, instanceId: UUID = UUID()) {
         self.process = process
         self.inputPipe = inputPipe
         self.outputPipe = outputPipe
         self.errorPipe = errorPipe
+        self.instanceId = instanceId
     }
     
     /// Send a specific signal to the process
