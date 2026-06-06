@@ -784,8 +784,9 @@ struct ScriptDetailView: View {
             }
         }
         .formStyle(.grouped)
+        .background(Color.white)
     }
-    
+
     private var footerView: some View {
         HStack {
             Button(role: .destructive) {
@@ -1160,7 +1161,8 @@ struct ScriptFormView: View {
                 }
             }
             .formStyle(.grouped)
-            
+            .background(Color.white)
+
             Divider()
             
             HStack {
@@ -1521,6 +1523,7 @@ struct SettingsTabView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .background(Color.white)
         .alert("Export Successful", isPresented: $showingExportSuccess) {
             Button("OK", role: .cancel) {}
                 .pointingHandCursor()
