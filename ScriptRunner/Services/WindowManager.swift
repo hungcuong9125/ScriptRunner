@@ -30,6 +30,8 @@ class WindowManager {
             .environmentObject(scriptManager)
         
         let hostingController = NSHostingController(rootView: AnyView(contentView))
+        hostingController.view.wantsLayer = true
+        hostingController.view.layer?.backgroundColor = NSColor.white.cgColor
         
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 750),
@@ -42,6 +44,7 @@ class WindowManager {
         window.contentViewController = hostingController
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 700, height: 450)
+        window.backgroundColor = .white
         
         mainWindowDelegate = MainWindowDelegate { [weak self] in
             self?.mainWindow = nil
