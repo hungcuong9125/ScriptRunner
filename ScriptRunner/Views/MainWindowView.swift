@@ -92,7 +92,7 @@ struct MainWindowView: View {
             Spacer()
         }
         .padding(.vertical, 12)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color.white)
     }
     
     private var tabContent: some View {
@@ -228,7 +228,7 @@ struct ScriptsTabView: View {
             scriptDetailView
                 .frame(minWidth: minDetailWidth, idealWidth: CGFloat(detailPanelWidth), maxWidth: .infinity)
                 .frame(maxHeight: .infinity)
-                .background(Color(nsColor: .windowBackgroundColor))
+                .background(Color.white)
                 .background {
                     GeometryReader { geometry in
                         Color.clear
@@ -1586,7 +1586,7 @@ struct SelectableLogView: NSViewRepresentable {
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = true
-        scrollView.backgroundColor = .textBackgroundColor
+        scrollView.backgroundColor = .white
         scrollView.borderType = .noBorder
         
         let textView = NSTextView()
