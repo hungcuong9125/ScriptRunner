@@ -30,3 +30,6 @@ DerivedData/
 ScriptRunner-config.json
 storage.sqlite3*
 *.bak
+
+## Documentation (local only)
+docs/
