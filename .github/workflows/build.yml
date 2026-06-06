@@ -11,8 +11,9 @@ permissions:
   contents: write
 
 jobs:
-  build-arm64:
+  build:
     runs-on: macos-15
+
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -20,79 +21,15 @@ jobs:
     - name: Select Xcode
       run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
 
-    - name: Build arm64
+    - name: Build Universal App
       run: |
         xcodebuild build \
           -project ScriptRunner.xcodeproj \
           -scheme ScriptRunner \
           -configuration Release \
           -derivedDataPath build \
-          ARCHS="arm64" \
-          ONLY_ACTIVE_ARCH=YES \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          ENABLE_HARDENED_RUNTIME=NO
-
-    - name: Ad-hoc Code Sign
-      run: |
-        APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
-        echo "Ad-hoc signing: $APP_PATH"
-        # Strip any existing signature first
-        codesign --remove-signature "$APP_PATH" 2>/dev/null || true
-        # Sign with ad-hoc identity
-        codesign --force --sign - "$APP_PATH"
-        codesign --verify --verbose "$APP_PATH"
-        echo "=== Code signature ==="
-        codesign -dvv "$APP_PATH" 2>&1 | head -8
-
-    - name: Verify Architecture
-      run: |
-        APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
-        echo "=== arm64 build ==="
-        lipo -info "$APP_PATH/Contents/MacOS/ScriptRunner"
-
-    - name: Create DMG
-      run: |
-        APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
-        VERSION=$(grep -A1 "MARKETING_VERSION" ScriptRunner.xcodeproj/project.pbxproj | grep -o '[0-9]\.[0-9]\.[0-9]' | head -1)
-        DMG_NAME="ScriptRunner_${VERSION}_arm64.dmg"
-        echo "Creating DMG: $DMG_NAME"
-        mkdir -p dmg_staging
-        cp -R "$APP_PATH" dmg_staging/
-        ln -s /Applications dmg_staging/Applications
-        hdiutil create -volname "ScriptRunner" -srcfolder dmg_staging -ov -format UDZO "$DMG_NAME"
-        ls -lh "$DMG_NAME"
-        cd "$(dirname "$APP_PATH")"
-        zip -r "$GITHUB_WORKSPACE/ScriptRunner_${VERSION}_arm64.zip" ScriptRunner.app
-
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ScriptRunner-arm64
-        path: |
-          ScriptRunner_*.dmg
-          ScriptRunner_*.zip
-        retention-days: 30
-
-  build-x86_64:
-    runs-on: macos-13
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Select Xcode
-      run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-
-    - name: Build x86_64
-      run: |
-        xcodebuild build \
-          -project ScriptRunner.xcodeproj \
-          -scheme ScriptRunner \
-          -configuration Release \
-          -derivedDataPath build \
-          ARCHS="x86_64" \
-          ONLY_ACTIVE_ARCH=YES \
+          ARCHS="arm64 x86_64" \
+          ONLY_ACTIVE_ARCH=NO \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
@@ -111,14 +48,19 @@ jobs:
     - name: Verify Architecture
       run: |
         APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
-        echo "=== x86_64 build ==="
+        echo "Found app at: $APP_PATH"
+        if [ -z "$APP_PATH" ]; then
+          echo "Error: ScriptRunner.app not found"
+          exit 1
+        fi
+        echo "=== Architecture ==="
         lipo -info "$APP_PATH/Contents/MacOS/ScriptRunner"
 
     - name: Create DMG
       run: |
         APP_PATH=$(find build -name "ScriptRunner.app" -type d | head -1)
         VERSION=$(grep -A1 "MARKETING_VERSION" ScriptRunner.xcodeproj/project.pbxproj | grep -o '[0-9]\.[0-9]\.[0-9]' | head -1)
-        DMG_NAME="ScriptRunner_${VERSION}_x86_64.dmg"
+        DMG_NAME="ScriptRunner_${VERSION}_universal.dmg"
         echo "Creating DMG: $DMG_NAME"
         mkdir -p dmg_staging
         cp -R "$APP_PATH" dmg_staging/
@@ -126,38 +68,37 @@ jobs:
         hdiutil create -volname "ScriptRunner" -srcfolder dmg_staging -ov -format UDZO "$DMG_NAME"
         ls -lh "$DMG_NAME"
         cd "$(dirname "$APP_PATH")"
-        zip -r "$GITHUB_WORKSPACE/ScriptRunner_${VERSION}_x86_64.zip" ScriptRunner.app
+        zip -r "$GITHUB_WORKSPACE/ScriptRunner_${VERSION}_universal.zip" ScriptRunner.app
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ScriptRunner-x86_64
+        name: ScriptRunner
         path: |
           ScriptRunner_*.dmg
           ScriptRunner_*.zip
         retention-days: 30
 
   release:
-    needs: [build-arm64, build-x86_64]
+    needs: build
     runs-on: macos-15
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-    - name: Download All Artifacts
+    - name: Download Artifacts
       uses: actions/download-artifact@v4
       with:
-        path: artifacts
+        name: ScriptRunner
+        path: .
 
-    - name: Collect Release Files
-      run: |
-        mkdir -p release
-        find artifacts -type f \( -name "*.dmg" -o -name "*.zip" \) -exec cp {} release/ \;
-        echo "=== Release files ==="
-        ls -lh release/
+    - name: List Files
+      run: ls -lh
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         name: ScriptRunner ${{ github.ref_name }}
-        files: release/*
+        files: |
+          ScriptRunner_*.dmg
+          ScriptRunner_*.zip
         generate_release_notes: true
