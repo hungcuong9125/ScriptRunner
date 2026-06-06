@@ -767,7 +767,7 @@ struct ScriptDetailView: View {
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     AutoGrowingTextInput(placeholder: "Force kill command", text: $editKillCommand)
-                    Text("Optional: Commands to force kill when Stop doesn't work.\ne.g., pkill -f gkg && rm -f ~/.gkg/gkg.lock")
+                    Text("Optional: Commands to force kill when Stop doesn't work.\ne.g., killall node")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1143,7 +1143,7 @@ struct ScriptFormView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         AutoGrowingTextInput(placeholder: "Force kill command", text: $killCommand)
-                        Text("Optional: Commands to force kill when Stop doesn't work.\ne.g., pkill -f gkg && rm -f ~/.gkg/gkg.lock")
+                        Text("Optional: Commands to force kill when Stop doesn't work.\ne.g., killall node")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

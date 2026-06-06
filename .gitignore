@@ -25,3 +25,8 @@ DerivedData/
 
 ## OS X
 .DS_Store
+
+## App data / config
+ScriptRunner-config.json
+storage.sqlite3*
+*.bak
