@@ -12,14 +12,14 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
     - name: Select Xcode
-      run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+      run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
 
     - name: Build Universal App
       run: |
@@ -99,7 +99,7 @@ jobs:
 
   release:
     needs: build
-    runs-on: macos-14
+    runs-on: macos-15
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
